@@ -240,8 +240,13 @@ function makeDbBackend(db){
    données à jour. Un seul message est en route à la fois (le suivant part après accusé de réception). */
 const ST = {queue:[], inflight:[], out:[], cur:null, curT:0, rev:null, ready:false, timer:null, ocr:{}, lastErr:null};
 const stSend = v => parent.postMessage({isStreamlitMessage:true, type:"streamlit:setComponentValue", value:v, dataType:"json"}, "*");
-function applyOp(o){ if(o.settings) S.settings={...S.settings,...o.settings}; else if(o.del) delete S[o.c][o.id]; else S[o.c][o.id]={...o.data,id:o.id}; }
+/* "inc" = changement relatif de quantité (+n / −n) : le serveur l'ajoute à la vraie valeur enregistrée,
+   ce qui évite qu'un poste écrase la sortie faite au même moment sur un autre poste. */
+function applyOp(o){ if(o.settings) S.settings={...S.settings,...o.settings}; else if(o.del) delete S[o.c][o.id];
+  else if(o.inc!=null){ const nq=qty(S[o.c][o.id])+o.inc; if(nq<=0) delete S[o.c][o.id]; else S[o.c][o.id]={...o.base,id:o.id,qty:nq}; }
+  else S[o.c][o.id]={...o.data,id:o.id}; }
 const stBackend = {
+  async inc(c,id,delta,base){ stQueue({c,id,inc:delta,base}); },
   async put(c,id,data){ stQueue({c,id,data:{...data,id}}); },
   async del(c,id){ stQueue({c,id,del:true}); },
   async setSettings(d){ stQueue({settings:d}); }
@@ -272,7 +277,7 @@ window.addEventListener("message", e=>{ const d=e.data; if(d && d.type==="stream
 /* Message sans réponse (connexion coupée…) : on le renvoie ; le serveur ignore les doublons. */
 setInterval(()=>{ if(ST.cur && Date.now()-ST.curT>150000){ ST.curT=Date.now(); stSend(ST.cur); } }, 10000);
 /* Toutes les minutes, on récupère les changements faits sur un autre appareil. */
-setInterval(()=>{ if(!ST.cur && !ST.out.length && !ST.queue.length && !ST.inflight.length && document.visibilityState==="visible" && !document.querySelector(".ov")) stPost({kind:"sync", id:uid("SY")}); }, 60000);
+setInterval(()=>{ if(!ST.cur && !ST.out.length && !ST.queue.length && !ST.inflight.length && document.visibilityState==="visible" && !document.querySelector(".ov")) stPost({kind:"sync", id:uid("SY")}); }, 20000);
 /* Lecture de documents par Claude, faite par le serveur (clé API dans les secrets). */
 function toJpegB64(blob){ return new Promise((ok,ko)=>{ const url=URL.createObjectURL(blob), im=new Image();
   im.onload=()=>{ const k=Math.min(1,2000/Math.max(im.width,im.height)), c=document.createElement("canvas"); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
@@ -332,6 +337,7 @@ async function migrateLegacy(){
 
 async function addQty(loc, product, dlc, delta){ _minD=null;
   const id=lineId(loc,product,dlc), nq=qty(S.stock[id])+delta;
+  if (backend.inc) return backend.inc("stock",id,delta,{loc,product,dlc:dlcM(dlc)});
   if (nq<=0) await backend.del("stock",id);
   else await backend.put("stock",id,{loc,product,dlc:dlcM(dlc),qty:nq});
 }
