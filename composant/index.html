@@ -141,6 +141,7 @@ table.compact button.sm{padding:1px 8px;font-size:12px}
   <a href="#commande" data-v="commande">▣ Commande (PDF)</a>
   <a href="#mouvements" data-v="mouvements">⇄ Mouvements</a>
   <a href="#parametres" data-v="parametres">⚙ Produits & emplacements</a>
+  <a href="#mail" data-v="mail">✉ Envoyer le stock par mail</a>
   <a href="#donnees" data-v="donnees">🔒 Gestion des données</a>
   <div class="sp"></div>
   <div class="mode" id="mode">Connexion…</div>
@@ -265,6 +266,9 @@ function stOnRender(a){
   if(a.admin && ST.adminWait===a.admin.id){ ST.adminWait=null; ui.adm.busy=false;
     if(a.admin.ok){ ui.adm.ok=true; ui.adm.err=""; } else ui.adm.err=a.admin.msg||"Mot de passe incorrect.";
     render(); }
+  if(a.mail){ const was=JSON.stringify(ST.mailCfg&&{c:ST.mailCfg.configured,f:ST.mailCfg.from}); ST.mailCfg=a.mail;
+    if(JSON.stringify({c:a.mail.configured,f:a.mail.from})!==was && ui.view==="mail") render();
+    const r=a.mail.res; if(r && ST.mailWait===r.id){ ST.mailWait=null; const m=mailState(); m.busy=false; m.last=r; toast(r.msg,!r.ok); render(); } }
   if(a.ocr && ST.ocr[a.ocr.id]){ const p=ST.ocr[a.ocr.id]; delete ST.ocr[a.ocr.id]; a.ocr.error ? p.reject(a.ocr.error) : p.resolve(a.ocr.result); }
   if(a.data && a.rev!==ST.rev){ ST.rev=a.rev; const d=a.data;
     for(const c of COLLS) S[c]=d[c]||{}; S.settings={alertMonths:2,...(d.settings||{})};
@@ -344,7 +348,7 @@ async function addQty(loc, product, dlc, delta){ _minD=null;
 async function logMove(m){ await backend.put("movements",uid("MV"),{...m,ts:Date.now(),op:opName||""}); }
 
 /* ============ ROUTAGE ============ */
-const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements",donnees:"Gestion des données"};
+const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements",mail:"Envoyer le stock par mail",donnees:"Gestion des données"};
 function route(){ const h=location.hash.slice(1); ui.view = TITLES[h] ? h : "accueil"; render(); }
 window.addEventListener("hashchange", route);
 
@@ -356,7 +360,7 @@ function doRender(){
   const active = document.activeElement; const keepId = active && active.id && $("#view").contains(active) ? active.id : null; const selStart = keepId && active.selectionStart;
   if (!loaded && !backend){ $("#view").innerHTML = `<div class="empty">Chargement…</div>`; return; }
   if (backend===fileBackend && !FS.name){ $("#view").innerHTML = vFileStart(); return; }
-  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,donnees:vData})[ui.view]();
+  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,mail:vMail,donnees:vData})[ui.view]();
   fitHeights();
   if (keepId){ const el=document.getElementById(keepId); if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selStart);}catch(e){} } }
 }
@@ -744,6 +748,42 @@ function vMoves(){
   ${mv.slice(0,500).map(m=>`<tr><td>${fmtTs(m.ts)}</td><td><span class="tag ${(MV[m.type]||["",""])[1]}">${(MV[m.type]||[m.type])[0]}</span></td><td class="mono">${esc(m.product)}</td><td class="num"><b>${mq(m)}</b></td><td>${fmtD(m.dlc)}</td><td class="mono">${esc(L(m.from)||"—")}</td><td class="mono">${esc(L(m.to)||"—")}</td><td>${esc(m.ref||"")}</td><td>${esc(m.op||"")}</td></tr>`).join("")}</table></div>${mv.length>500?`<p class="muted">500 premiers affichés sur ${mv.length}.</p>`:""}`:`<div class="empty">Aucun mouvement.</div>`}</div>`;
 }
 
+/* ============ ENVOI DU STOCK PAR E-MAIL ============
+   Le classeur Excel (stock complet) est fabriqué ici, puis envoyé par le serveur (Gmail). */
+const todayFr = () => new Date().toLocaleDateString("fr-BE",{day:"2-digit",month:"2-digit",year:"numeric"});
+const mailState = () => ui.mail ||= {to:null, subject:"", text:"", busy:false, last:null};
+const mailFileName = () => { const d=new Date(); return `stock-palettes-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.xlsx`; };
+function mailDefaultText(){ const ls=lines(), np=new Set(ls.map(x=>x.product)).size;
+  return `Bonjour,\n\nVeuillez trouver en pièce jointe l'extraction complète du stock du dépôt au ${todayFr()} :\n- ${sumQ(ls)} palettes\n- ${np} produits\n- ${ls.length} lignes de stock (emplacement, produit, DLC)\n\nCordialement`; }
+function vMail(){ const m=mailState(), cfg=ST.mailCfg||{};
+  if(m.to===null) m.to=S.settings.mailTo||"";
+  const ls=lines();
+  return `<div class="grid2"><div class="card"><h2>✉ Envoyer le stock par e-mail</h2>
+    ${cfg.configured?`<p class="muted" style="margin-top:0">Envoyé depuis <b>${esc(cfg.from)}</b>.</p>`:`<div class="banner">L'envoi d'e-mails n'est pas encore configuré : il faut indiquer l'adresse Gmail d'envoi et son mot de passe d'application dans les secrets (voir le README, « Envoi du stock par e-mail »).</div>`}
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:12px">
+      <div class="f"><label>Destinataire(s) — séparés par des virgules</label><input id="ml_to" type="email" multiple value="${esc(m.to)}" placeholder="nom@exemple.be, autre@exemple.be" oninput="mailState().to=this.value"></div>
+      <div class="f"><label>Objet</label><input id="ml_sub" value="${esc(m.subject||`Stock du dépôt au ${todayFr()}`)}" oninput="mailState().subject=this.value"></div>
+      <div class="f"><label>Message</label><textarea id="ml_txt" rows="9" oninput="mailState().text=this.value">${esc(m.text||mailDefaultText())}</textarea></div>
+      <div><button class="pri" onclick="sendStockMail()" ${m.busy||!cfg.configured||!ls.length?"disabled":""}>${m.busy?"Envoi en cours…":"✉ Envoyer"}</button></div>
+      ${m.last?`<div class="${m.last.ok?"muted":""}" style="${m.last.ok?"":"color:var(--bad)"}">${esc(m.last.msg)}</div>`:""}
+      <p class="muted" style="font-size:12.5px;margin:0">Les destinataires sont mémorisés pour le prochain envoi.</p>
+    </div></div>
+    <div class="card"><h2>Pièce jointe</h2>
+      <p style="margin-top:0">📎 <b class="mono">${esc(mailFileName())}</b></p>
+      <div class="kv"><div>Feuille 1</div><div>Stock par emplacement : ${ls.length} ligne(s)</div><div>Feuille 2</div><div>Total par produit et DLC</div><div>Total</div><div><b>${sumQ(ls)}</b> palette(s)</div></div>
+      <p class="muted" style="font-size:12.5px">Le fichier contient tout le stock, sans tenir compte des filtres de l'écran « Stock palettes ».</p>
+      <button onclick="mailDownload()" ${ls.length?"":"disabled"}>⤓ Télécharger ce fichier</button></div></div>`; }
+const blobToB64 = b => new Promise((ok,ko)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=ko; r.readAsDataURL(b); });
+function mailDownload(){ const a=document.createElement("a"); a.href=URL.createObjectURL(stockWorkbook(fullStock(),true)); a.download=mailFileName(); document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); }
+async function sendStockMail(){ const m=mailState();
+  const to=($("#ml_to")?.value||"").trim(); if(!to) return toast("Indiquez au moins une adresse e-mail.",true);
+  if(!ST.ready) return toast("Serveur non connecté : rechargez la page.",true);
+  m.to=to; m.busy=true; m.last=null; render();
+  try{ const data=await blobToB64(stockWorkbook(fullStock(),true)); const id=uid("ML"); ST.mailWait=id;
+    stPost({kind:"mail", id, to, subject:$("#ml_sub")?.value||"", text:$("#ml_txt")?.value||"", file:{name:mailFileName(), data}});
+    if((S.settings.mailTo||"")!==to && canWrite) backend.setSettings({mailTo:to});
+  }catch(e){ m.busy=false; toast("Impossible de préparer le fichier Excel.",true); render(); } }
+
 /* ============ GESTION DES DONNÉES (protégée par mot de passe) ============
    Le mot de passe est vérifié par le serveur ; l'accès reste ouvert jusqu'au rechargement de la page. */
 const admState = () => ui.adm ||= {ok:false, err:"", busy:false, sel:{}, q:"", type:"SORTIE", ref:""};
@@ -1073,8 +1113,9 @@ function zipStore(entries){
   const e=new DataView(new ArrayBuffer(22)); e.setUint32(0,0x06054b50,true); e.setUint16(8,entries.length,true); e.setUint16(10,entries.length,true); e.setUint32(12,csize,true); e.setUint32(16,off,true);
   return new Blob([...parts,...central,new Uint8Array(e.buffer)]);
 }
-function stockWorkbook(){
-  const ls=stockView(); const byProd=ui.stockSort.k==="product";
+/* Stock complet, sans filtre : trié par produit, dépôt, DLC, emplacement */
+const fullStock = () => lines().sort((a,b)=>(a.product||"").localeCompare(b.product||"") || (locOf(a.loc).aisle||"").localeCompare(locOf(b.loc).aisle||"",undefined,{numeric:true}) || dkey(a.dlc).localeCompare(dkey(b.dlc)) || locSort(locOf(a.loc),locOf(b.loc)));
+function stockWorkbook(ls=stockView(), byProd=ui.stockSort.k==="product"){
   const G="2E9D5B", R="C9372C";
   const rows1=ls.map((x,i)=>{ const bg=(depotBg(x.loc)||"").replace("#","").toUpperCase()||undefined, sep=byProd&&i>0&&ls[i-1].product!==x.product, base={bg,sep};
     return [{v:x.product,s:base},{v:qty(x),s:{...base,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{...base,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:locOf(x.loc).aisle||"",s:base},{v:L(x.loc),s:base},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{...base,right:true}}]; });
