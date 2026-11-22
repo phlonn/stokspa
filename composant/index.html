@@ -114,7 +114,7 @@ table.compact button.sm{padding:1px 8px;font-size:12px}
 .ov{position:fixed;inset:0;background:rgba(15,34,51,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .modal{background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
 .modal h3{margin:0 0 12px;font-size:17px}
-.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.modal .acts{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:18px}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13.5px}
 .kv div:nth-child(odd){color:var(--muted)}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
@@ -164,8 +164,15 @@ table.compact button.sm{padding:1px 8px;font-size:12px}
 /* ============ ÉTAT ============
    Modèle : une ligne de stock = emplacement + produit + DLC (mois) + quantité de palettes.
    Aucune palette n'est numérotée individuellement. */
-const S = {products:{}, locations:{}, stock:{}, movements:{}, pallets:{}, settings:{alertMonths:2}};
-const COLLS = ["products","locations","stock","movements","pallets"]; // "pallets" = ancien format, migré automatiquement
+const S = {products:{}, locations:{}, stock:{}, movements:{}, pallets:{}, blocks:{}, settings:{alertMonths:2}};
+const COLLS = ["products","locations","stock","movements","pallets","blocks"]; // "pallets" = ancien format, migré automatiquement
+/* Blocage : un produit dans un emplacement (toutes DLC) ne peut plus sortir ni être proposé. */
+const blkId = (loc,product) => `${loc}__${product}`.replace(/[^A-Za-z0-9_.~:@+-]/g,"_").slice(0,150);
+const blockOf = x => S.blocks[blkId(x.loc,x.product)];
+const isBlocked = x => !!blockOf(x);
+const blkText = b => [b.reason,b.note].filter(Boolean).join(" – ");
+const blkTag = (x,full) => { const b=blockOf(x); if(!b) return ""; const t=blkText(b);
+  return `<span class="tag t-bad" title="${esc(t||"Bloqué")}" style="${full?"white-space:normal":"max-width:260px;overflow:hidden;text-overflow:ellipsis"};vertical-align:middle">🔒 Bloqué${t?` · <span style="font-weight:500">${esc(t)}</span>`:""}</span>`; };
 let backend = null, canWrite = true, loaded = false, dbRef = null, migrating = false;
 let ui = {view:"accueil", hl:null, stockFilter:{p:"",st:"",q:""}, stockSort:{k:"product",dir:1}, mvFilter:{t:"",q:""}, recep:null, sortie:null};
 
@@ -389,6 +396,7 @@ function vDash(){
     <div class="kpi"><div class="l">Places libres</div><div class="v">${tc-nPl}</div><div class="s">${nEmpty} emplacement(s) totalement vide(s) sur ${locs.length}</div></div>
     <div class="kpi soon"><div class="l">Péremption ≤ ${alertM()} mois</div><div class="v">${sumQ(soon)}</div><div class="s">palettes à écouler en priorité</div></div>
     <div class="kpi bad"><div class="l">Palettes périmées</div><div class="v">${sumQ(bad)}</div><div class="s">bloquées à la sortie</div></div>
+    <div class="kpi bad" style="cursor:pointer" onclick="ui.stockFilter={p:'',st:'blocked',q:''};location.hash='stock'"><div class="l">🔒 Palettes bloquées</div><div class="v">${sumQ(ls.filter(isBlocked))}</div><div class="s">quarantaine, labo… (${new Set(ls.filter(isBlocked).map(x=>x.loc+x.product)).size} produit(s)/emplacement)</div></div>
     <div class="kpi"><div class="l">Mouvements aujourd'hui</div><div class="v">${mvToday.length}</div><div class="s">${qIn} palette(s) entrée(s) · ${qOut} sortie(s)</div></div>
   </div>
   <div class="grid2">
@@ -434,7 +442,7 @@ function vPlan(){
         const n=sumQ(xs), c=cap(l);
         return `<div class="cell ${cls}${hl}" onclick="locDetail('${esc(l.id)}')" title="${esc(L(l.id))} — ${n}/${c} palette(s)">
           <span class="id" style="display:flex;justify-content:space-between;align-items:baseline"><span class="lc">${esc(L(l.id))}</span><b style="color:${n>=c?"var(--ink)":"var(--muted)"}">${n}/${c}</b></span>
-          ${n?`<span class="plist">${xs.map(x=>`<span class="pl"><span class="mono pc">${esc(x.product)}</span><b>${qty(x)}</b><span class="pd ${dlcCls(x.product,x.dlc)}">${fmtD(x.dlc)}</span></span>`).join("")}</span>`:`<span class="muted">vide</span>`}
+          ${n?`<span class="plist">${xs.map(x=>`<span class="pl"><span class="mono pc">${isBlocked(x)?"🔒 ":""}${esc(x.product)}</span><b>${qty(x)}</b><span class="pd ${dlcCls(x.product,x.dlc)}">${fmtD(x.dlc)}</span></span>`).join("")}</span>`:`<span class="muted">vide</span>`}
           <span class="fill"><i style="width:${Math.min(100,n*100/c)}%"></i></span></div>`; }).join("")}
     </div></div>`; }).join("")}</div>`;
 }
@@ -444,14 +452,14 @@ function vStock(){
   const f = ui.stockFilter; const q=f.q.toLowerCase();
   let ls = lines().sort(stockCmp);
   if (f.p) ls = ls.filter(x=>x.product===f.p);
-  if (f.st==="alert") ls = ls.filter(x=>status(x)!=="ok"); else if (f.st) ls = ls.filter(x=>status(x)===f.st);
+  if (f.st==="blocked") ls = ls.filter(isBlocked); else if (f.st==="alert") ls = ls.filter(x=>status(x)!=="ok"); else if (f.st) ls = ls.filter(x=>status(x)===f.st);
   if (q) ls = ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
-  const groups = {}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (groups[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0}); groups[k].n+=qty(x); });
+  const groups = {}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (groups[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0,b:0}); groups[k].n+=qty(x); if(isBlocked(x)) groups[k].b+=qty(x); });
   const gl = Object.values(groups).sort((a,b)=>a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)));
   return `<div class="card"><div class="row">
     <div class="f"><label>Produit</label><select onchange="ui.stockFilter.p=this.value;render()"><option value="">Tous</option>${prodOptions(f.p)}</select></div>
     ${f.p?`<button class="danger" onclick="purgeProduct('${esc(f.p)}')" ${ro()} title="Retirer du stock toutes les palettes de ce produit">🗑 Supprimer tout le stock de ${esc(f.p)}</button>`:""}
-    <div class="f"><label>État DLC</label><select onchange="ui.stockFilter.st=this.value;render()">${[["","Tous"],["ok","OK"],["alert","Alertes (proches + périmées)"],["soon","Proches"],["bad","Périmées"]].map(([v,t])=>`<option value="${v}" ${f.st===v?"selected":""}>${t}</option>`).join("")}</select></div>
+    <div class="f"><label>État DLC</label><select onchange="ui.stockFilter.st=this.value;render()">${[["","Tous"],["ok","OK"],["alert","Alertes (proches + périmées)"],["soon","Proches"],["bad","Périmées"],["blocked","🔒 Bloqués"]].map(([v,t])=>`<option value="${v}" ${f.st===v?"selected":""}>${t}</option>`).join("")}</select></div>
     <div class="f" style="flex:1"><label>Filtre</label><input id="sq" value="${esc(f.q)}" placeholder="Emplacement, produit, DLC…" oninput="ui.stockFilter.q=this.value;render()"></div>
     <button onclick="copyCsv('stock')">Copier en CSV</button>
     <button class="pri" onclick="exportExcel()">⤓ Télécharger Excel</button>
@@ -462,10 +470,10 @@ function vStock(){
   </div></div>
   <div class="grid2">
   <div class="card"><h2><span class="x">Stock par emplacement <span class="muted" style="font-weight:400">(${ls.length} lignes)</span></span><select onchange="ui.stockSort={k:this.value,dir:1};render()" style="font-size:12.5px;padding:4px 8px">${[["product","Trier : produit, dépôt, DLC"],["dlc","Trier : DLC, produit, emplacement"],["loc","Trier : emplacement, produit, DLC"]].map(([v,t])=>`<option value="${v}" ${ui.stockSort.k===v?"selected":""}>${t}</option>`).join("")}${ui.stockSort.k==="qty"?`<option value="qty" selected>Trier : palettes</option>`:""}</select></h2>
-    ${ls.length?`<div class="scroll fill-h"><table class="compact"><tr>${sortTh("product","Produit")}${sortTh("qty","Palettes","num")}${sortTh("dlc","DLC")}${sortTh("loc","Emplacement")}<th>Reste</th></tr>${ls.map((x,i)=>`<tr class="click deprow${ui.stockSort.k==="product"&&i&&ls[i-1].product!==x.product?" prod-sep":""}" style="${depotBg(x.loc)?`background:${depotBg(x.loc)}`:""}" onclick="lineDetail('${esc(x.id)}')"><td class="mono" style="white-space:nowrap">${esc(x.product)}</td><td class="num"><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td class="mono">${esc(L(x.loc))}</td><td>${stTag(x)}</td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun stock.</div>`}
+    ${ls.length?`<div class="scroll fill-h"><table class="compact"><tr>${sortTh("product","Produit")}${sortTh("qty","Palettes","num")}${sortTh("dlc","DLC")}${sortTh("loc","Emplacement")}<th>Reste</th></tr>${ls.map((x,i)=>`<tr class="click deprow${ui.stockSort.k==="product"&&i&&ls[i-1].product!==x.product?" prod-sep":""}" style="${depotBg(x.loc)?`background:${depotBg(x.loc)}`:""}" onclick="lineDetail('${esc(x.id)}')"><td class="mono" style="white-space:nowrap">${esc(x.product)}</td><td class="num"><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td class="mono">${esc(L(x.loc))}</td><td style="white-space:nowrap">${stTag(x)} ${blkTag(x)}</td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun stock.</div>`}
   </div>
   <div class="card"><h2>Total par produit et DLC <span class="muted" style="font-weight:400">(${sumQ(ls)} palettes)</span></h2><p class="muted" style="margin:-6px 0 10px;font-size:12.5px">Cliquez sur un produit pour sortir des palettes, ou sur « + Ajouter » pour en ajouter.</p>
-    ${gl.length?`<div class="scroll fill-h"><table class="compact"><tr><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Reste</th><th></th></tr>${gl.map((g,i)=>`<tr class="click${i&&gl[i-1].product!==g.product?" prod-sep":""}" title="Cliquer pour sortir des palettes" onclick="outProd('${esc(g.product)}','${g.dlc}')"><td class="mono" style="white-space:nowrap">${esc(g.product)}</td><td class="num"><b>${g.n}</b></td><td>${DL(g.product,g.dlc)}</td><td>${stTag(g)}</td><td style="white-space:nowrap;text-align:right"><button class="sm danger" onclick="event.stopPropagation();outProd('${esc(g.product)}','${g.dlc}')" ${ro()}>− Sortir</button> <button class="sm" onclick="event.stopPropagation();addProd('${esc(g.product)}','${g.dlc}')" ${ro()}>+ Ajouter</button></td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun résultat.</div>`}
+    ${gl.length?`<div class="scroll fill-h"><table class="compact"><tr><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Reste</th><th></th></tr>${gl.map((g,i)=>`<tr class="click${i&&gl[i-1].product!==g.product?" prod-sep":""}" title="Cliquer pour sortir des palettes" onclick="outProd('${esc(g.product)}','${g.dlc}')"><td class="mono" style="white-space:nowrap">${esc(g.product)}</td><td class="num"><b>${g.n}</b></td><td>${DL(g.product,g.dlc)}</td><td style="white-space:nowrap">${stTag(g)}${g.b?` <span class="tag t-bad" title="Palettes bloquées (quarantaine, labo…)">🔒 ${g.b}</span>`:""}</td><td style="white-space:nowrap;text-align:right"><button class="sm danger" onclick="event.stopPropagation();outProd('${esc(g.product)}','${g.dlc}')" ${ro()}>− Sortir</button> <button class="sm" onclick="event.stopPropagation();addProd('${esc(g.product)}','${g.dlc}')" ${ro()}>+ Ajouter</button></td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun résultat.</div>`}
   </div></div>`;
 }
 /* Tri du stock par emplacement : par défaut produit → dépôt → DLC → emplacement */
@@ -576,7 +584,7 @@ async function doRecep(){
 }
 
 /* ============ SORTIE FEFO ============ */
-function sortieCands(){ const s=ui.sortie; return s.product ? lines().filter(x=>x.product===s.product && (s.allowExp || status(x)!=="bad")).sort(fefo) : []; }
+function sortieCands(){ const s=ui.sortie; return s.product ? lines().filter(x=>x.product===s.product && !isBlocked(x) && (s.allowExp || status(x)!=="bad")).sort(fefo) : []; }
 function sortieTake(){ const s=ui.sortie; const c=sortieCands();
   if (s.take){ const t={}; c.forEach(x=>{ if(s.take[x.id]) t[x.id]=Math.min(s.take[x.id],qty(x)); }); return t; }
   const t={}; let rest=s.n; for(const x of c){ if(rest<=0) break; const k=Math.min(rest,qty(x)); t[x.id]=k; rest-=k; } return t; }
@@ -592,7 +600,7 @@ function vSortie(){
     <div class="f" style="flex:1"><label>Référence (n° commande, client…)</label><input id="s_r" value="${esc(s.ref)}" oninput="ui.sortie.ref=this.value"></div></div>
     ${opField()}
     <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" ${s.allowExp?"checked":""} onchange="ui.sortie.allowExp=this.checked;ui.sortie.take=null;render()"> Autoriser la sortie de palettes périmées (destruction, retour…)</label>
-    ${s.product?`<div class="muted">${avail} palette(s) disponible(s)${nExp&&!s.allowExp?` · ${nExp} périmée(s) bloquée(s)`:""}.</div>`:""}
+    ${s.product?`<div class="muted">${avail} palette(s) disponible(s)${(()=>{ const nb=sumQ(all.filter(isBlocked)), ne=sumQ(all.filter(x=>!isBlocked(x)&&status(x)==="bad")); return (ne&&!s.allowExp?` · ${ne} périmée(s) bloquée(s)`:"")+(nb?` · 🔒 ${nb} bloquée(s) par emplacement`:""); })()}.</div>`:""}
     ${s.product && avail<s.n?`<div class="banner" style="margin:0">Stock insuffisant : ${avail} disponible(s) pour ${s.n} demandée(s).</div>`:""}
     </div></div>
     <div class="card"><h2>2. Prélèvement <span class="muted" style="font-weight:400">— règle FEFO : 1<sup>re</sup> périmée, 1<sup>re</sup> sortie</span></h2>
@@ -609,7 +617,9 @@ async function doSortie(){
   try{ for(const id of ids){ const x=S.stock[id], k=Math.min(t[id],qty(x)); if(!k) continue; await removeQty(x,k,status(x)==="bad"?"REBUT":"SORTIE",s.ref.trim()); n+=k; }
     toast(`${n} palette(s) sortie(s) du stock.`); ui.sortie={product:s.product,n:1,ref:"",take:null,allowExp:false}; render(); }catch(e){}
 }
-async function removeQty(x,k,type,ref){ const {loc,product,dlc}=x; await addQty(loc,product,dlc,-k); await logMove({type,product,dlc:dlcM(dlc),qty:k,from:loc,to:"",ref:ref||""}); }
+async function removeQty(x,k,type,ref){ const {loc,product,dlc}=x; await addQty(loc,product,dlc,-k); await logMove({type,product,dlc:dlcM(dlc),qty:k,from:loc,to:"",ref:ref||""});
+  /* Emplacement vidé de ce produit : le blocage éventuel n'a plus lieu d'être */
+  if(S.blocks[blkId(loc,product)] && !lines().some(y=>y.loc===loc&&y.product===product)) await backend.del("blocks",blkId(loc,product)); }
 function copyPick(){ const t=sortieTake(); const rows=Object.keys(t).filter(id=>t[id]>0&&S.stock[id]).map(id=>({...S.stock[id],k:t[id]})).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc)));
   copyText(`Prélèvement ${ui.sortie.ref||""}\n`+rows.map(x=>`${L(x.loc)}\t${x.product}\t${x.k} pal.\tDLC ${fmtD(x.dlc)}`).join("\n"),"Liste copiée."); }
 
@@ -624,7 +634,7 @@ function cmdNeed(){ const need={}; cmdState().lines.forEach(l=>{ const k=String(
 /* Nombre de palettes d'un produit dans un emplacement (toutes DLC confondues) */
 function prodInLoc(bl,loc,code){ return sumQ((bl[loc]||[]).filter(y=>y.product===code)); }
 function cmdCands(code){ const c=cmdState(), ais=cmdAisles(), bl=byLoc();
-  return lines().filter(x=>x.product===code && ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad"))
+  return lines().filter(x=>x.product===code && !isBlocked(x) && ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad"))
     .sort((a,b)=>dkey(a.dlc).localeCompare(dkey(b.dlc)) || prodInLoc(bl,a.loc,code)-prodInLoc(bl,b.loc,code) || locSort(locOf(a.loc),locOf(b.loc))); }
 function cmdTake(){ const c=cmdState(), need=cmdNeed(), t={};
   if(c.take){ for(const [id,k] of Object.entries(c.take)){ const x=S.stock[id]; if(x&&k>0&&need[x.product]) t[id]=Math.min(k,qty(x)); } return t; }
@@ -676,7 +686,7 @@ function vCmd(){
 }
 /* Autres dépôts (non cochés) où le produit est disponible : [{aisle, n}] */
 function cmdElsewhere(code){ const c=cmdState(), ais=cmdAisles(), g={};
-  lines().filter(x=>x.product===code && !ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad")).forEach(x=>{ const a=locOf(x.loc).aisle||"?"; g[a]=(g[a]||0)+qty(x); });
+  lines().filter(x=>x.product===code && !isBlocked(x) && !ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad")).forEach(x=>{ const a=locOf(x.loc).aisle||"?"; g[a]=(g[a]||0)+qty(x); });
   return Object.entries(g).map(([aisle,n])=>({aisle,n})).sort((a,b)=>b.n-a.n||a.aisle.localeCompare(b.aisle)); }
 const cmdElseHtml = (code,missing) => { const el=cmdElsewhere(code); if(!el.length) return `<div class="muted" style="font-size:12.5px;margin-top:4px">Produit absent des autres dépôts.</div>`;
   return `<div style="font-size:12.5px;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span>Disponible dans un autre dépôt :</span>${el.map(e=>`<button class="sm yellow" onclick="cmdToggleAisle('${esc(e.aisle)}',true)" title="Ajouter ce dépôt à la préparation">+ Dépôt ${esc(e.aisle)} · ${e.n} pal.${e.n>=missing?" ✓":""}</button>`).join("")}</div>`; };
@@ -734,7 +744,7 @@ Réponds uniquement en JSON :
 }
 
 /* ============ MOUVEMENTS ============ */
-const MV = {ENTREE:["Entrée","t-in"],SORTIE:["Sortie","t-out"],TRANSFERT:["Transfert","t-mv"],REBUT:["Rebut","t-rb"]};
+const MV = {ENTREE:["Entrée","t-in"],SORTIE:["Sortie","t-out"],TRANSFERT:["Transfert","t-mv"],REBUT:["Rebut","t-rb"],BLOCAGE:["Blocage","t-rb"],DEBLOCAGE:["Déblocage","t-in"]};
 function vMoves(){
   const f=ui.mvFilter, q=f.q.toLowerCase();
   let mv=Object.values(S.movements).sort((a,b)=>b.ts-a.ts);
@@ -936,9 +946,30 @@ function lineDetail(id){ const x=S.stock[id]; if(!x||!qty(x)) return; const pr=S
     <div>Produit</div><div><b class="mono">${esc(x.product)}</b>${pr.format?` <span class="muted">· ${esc(pr.format)}</span>`:""}</div>
     <div>Emplacement</div><div class="mono">${esc(L(x.loc))}</div>
     <div>DLC</div><div>${DL(x.product,x.dlc)} ${stTag(x)}</div>
-    <div>Quantité</div><div><b>${qty(x)}</b> palette(s)</div></div>
+    <div>Quantité</div><div><b>${qty(x)}</b> palette(s)</div>
+    ${(b=>b?`<div>Blocage</div><div>${blkTag(x,true)} <button class="sm" onclick="this.closest('.ov').remove();blockLine('${esc(id)}')" ${ro()}>✎ Modifier le motif</button><br><span class="muted" style="font-size:12px">depuis le ${fmtTs(b.ts)}${b.op?" · "+esc(b.op):""} — toutes les DLC de ce produit dans cet emplacement</span></div>`:"")(blockOf(x))}</div>
+    ${isBlocked(x)?`<div class="banner" style="margin:12px 0 0">Ces palettes ne peuvent pas sortir ni être transférées, et ne sont pas proposées dans les sorties et commandes. Débloquez-les d'abord.</div>`:""}
     ${hist.length?`<h4 style="margin:16px 0 6px">Derniers mouvements</h4>${hist.map(m=>`<div style="font-size:12.5px">${fmtTs(m.ts)} · ${(MV[m.type]||[m.type])[0]} ${mq(m)} pal. ${m.from?esc(L(m.from))+" → ":""}${esc(L(m.to))} ${m.op?"· "+esc(m.op):""}</div>`).join("")}`:""}`,
-  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite],[status(x)==="bad"?"Mettre au rebut":"Sortir","danger",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite],["Fermer","pri"]]); }
+  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["+ Nouvel emplacement","",()=>{ setTimeout(()=>addToNewLoc(id),10); }, !canWrite],
+   isBlocked(x)?["🔓 Débloquer","",()=>{ setTimeout(()=>unblockLine(id),10); }, !canWrite]:["🔒 Bloquer","",()=>{ setTimeout(()=>blockLine(id),10); }, !canWrite],
+   ["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite||isBlocked(x)],[status(x)==="bad"?"Mettre au rebut":"Sortir","danger",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite||isBlocked(x)],["Fermer","pri"]]); }
+const BLK_REASONS = ["Quarantaine","Bloqué par le labo","Contrôle qualité","Litige / retour fournisseur","Autre"];
+/* Bloquer, ou modifier le motif d'un blocage existant. Motif libre (suggestions proposées) + info supplémentaire libre. */
+function blockLine(id){ const x=S.stock[id]; if(!x) return; const n=sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product)), b=blockOf(x);
+  modal(`🔒 ${b?"Modifier le blocage de":"Bloquer"} ${esc(x.product)} dans ${esc(L(x.loc))}`,`<p class="muted" style="margin-top:0">${b?`Bloqué depuis le ${fmtTs(b.ts)}.`:`Les <b>${n}</b> palette(s) de ce produit dans cet emplacement (toutes DLC, y compris celles ajoutées plus tard) ne pourront plus sortir ni être transférées, et ne seront plus proposées dans les sorties et commandes.`}</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="f"><label>Motif * (choisissez ou tapez le vôtre)</label><input id="bk_r" list="bk_list" value="${esc(b?b.reason:BLK_REASONS[0])}" autocomplete="off"><datalist id="bk_list">${BLK_REASONS.map(r=>`<option value="${r}">`).join("")}</datalist></div>
+    <div class="f"><label>Info supplémentaire (affichée à côté de « Bloqué »)</label><input id="bk_n" value="${esc(b?b.note||"":"")}" maxlength="120" placeholder="ex. analyse n° 123, attente résultat labo, lot 4587…"></div></div>`,
+  [["Annuler"],[b?"Enregistrer":"Bloquer",b?"pri":"danger",async()=>{ const reason=$("#bk_r").value.trim(), note=$("#bk_n").value.trim();
+    if(!reason){ toast("Indiquez un motif.",true); return false; }
+    await backend.put("blocks",blkId(x.loc,x.product),{loc:x.loc,product:x.product,reason,note,ts:b?b.ts:Date.now(),op:b?b.op||"":opName||""});
+    await logMove({type:"BLOCAGE",product:x.product,dlc:"",qty:n,from:x.loc,to:"",ref:(b?"Motif modifié : ":"")+reason+(note?" · "+note:"")});
+    toast(b?"Motif du blocage enregistré.":`${x.product} bloqué dans ${L(x.loc)} (${reason}).`); }, !canWrite]]);
+  setTimeout(()=>$(b?"#bk_n":"#bk_r")?.select(),30); }
+function unblockLine(id){ const x=S.stock[id]; if(!x) return; const b=blockOf(x); if(!b) return; const n=sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product));
+  modal(`🔓 Débloquer ${esc(x.product)} dans ${esc(L(x.loc))}`,`<p style="margin-top:0">Bloqué pour : <b>${esc(b.reason||"")}</b>${b.note?` · ${esc(b.note)}`:""}, depuis le ${fmtTs(b.ts)}.</p><p>Les ${n} palette(s) redeviennent disponibles pour les sorties et commandes.</p>`,
+  [["Annuler"],["Débloquer","pri",async()=>{ await backend.del("blocks",blkId(x.loc,x.product));
+    await logMove({type:"DEBLOCAGE",product:x.product,dlc:"",qty:n,from:x.loc,to:"",ref:b.reason||""}); toast(`${x.product} débloqué dans ${L(x.loc)}.`); }, !canWrite]]); }
 function transfer(id){ const x=S.stock[id]; if(!x) return; const bl=byLoc();
   /* Tous les emplacements sauf celui de départ : ceux qui ont déjà ce produit d'abord, puis le même dépôt, puis les autres */
   const rank=l=>(bl[l.id]||[]).some(y=>y.product===x.product)?0:(l.aisle===locOf(x.loc).aisle?1:2);
@@ -983,8 +1014,10 @@ function quickOut(id){ const x=S.stock[id]; const rb=status(x)==="bad";
 
 /* Sortie depuis le stock : un produit + une DLC, réparti sur ses emplacements */
 function outProd(product,dlc){
-  const xs=lines().filter(x=>x.product===product && dlcM(x.dlc)===dlc).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc)));
-  if(!xs.length) return; const tot=sumQ(xs), rb=status(xs[0])==="bad";
+  const all=lines().filter(x=>x.product===product && dlcM(x.dlc)===dlc), nb=sumQ(all.filter(isBlocked));
+  const xs=all.filter(x=>!isBlocked(x)).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc)));
+  if(!xs.length) return toast(nb?`Toutes les palettes de ${product} (DLC ${fmtD(dlc)}) sont bloquées.`:"Aucune palette.",true);
+  if(nb) setTimeout(()=>toast(`🔒 ${nb} palette(s) bloquée(s) ne sont pas proposées.`),50); const tot=sumQ(xs), rb=status(xs[0])==="bad";
   modal(`${rb?"Mettre au rebut":"Sortir"} ${esc(product)} · DLC ${fmtD(dlc)}`,`<p class="muted" style="margin-top:0">${tot} palette(s) en stock sur ${xs.length} emplacement(s) ${stTag(xs[0])}</p>
     <div class="row"><div class="f" style="width:170px"><label>Nombre de palettes à sortir</label><input id="op_n" type="number" min="1" max="${tot}" value="" placeholder="0" oninput="outSpread()"></div>
     <div class="f" style="flex:1"><label>Référence / motif</label><input id="op_ref"></div></div>
@@ -1026,6 +1059,48 @@ function addNewToLoc(lid){ const l=S.locations[lid]; if(!l) return; const free=c
   setTimeout(()=>$("#np_code")?.focus(),30);
 }
 function npHint(){ const c=$("#np_code").value.trim().toUpperCase(), h=$("#np_hint"); if(!h) return; h.textContent = c && !S.products[safeId(c)] ? "Nouveau produit : il sera créé." : ""; }
+
+/* Ajout de palettes de ce produit dans un AUTRE emplacement (existant ou à créer). */
+function addToNewLoc(id){ const x=S.stock[id]; if(!x) return; const bl=byLoc();
+  const rank=l=>(bl[l.id]||[]).some(y=>y.product===x.product)?1:0; // emplacements sans ce produit d'abord
+  const all=Object.values(S.locations).filter(l=>l.id!==x.loc).sort((a,b)=>rank(a)-rank(b)||locSort(a,b));
+  const [y,mo]=dlcM(x.dlc).split("-");
+  ui.nl={product:x.product};
+  modal(`Mettre ${esc(x.product)} dans un nouvel emplacement`,`<p class="muted" style="margin-top:0">Ajoute des palettes de <b class="mono">${esc(x.product)}</b> dans un autre emplacement. Si le code n'existe pas encore (ex. <span class="mono">F53</span>), l'emplacement est créé.</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div class="f"><label>Emplacement (tapez le code ou choisissez dans la liste)</label><input id="nl_to" class="mono" list="nl_list" autocomplete="off" placeholder="ex. D303" oninput="nlInfo()">
+        <datalist id="nl_list">${all.map(l=>{ const xs=bl[l.id]||[], u=sumQ(xs); return `<option value="${esc(L(l.id))}">${u}/${cap(l)} · ${xs.length?esc(xs.map(z=>z.product+" "+qty(z)).join(", ")):"vide"}</option>`; }).join("")}</datalist></div>
+      <div id="nl_info" class="muted" style="font-size:12.5px;min-height:18px"></div>
+      <div class="row"><div class="f" style="width:150px"><label>Nombre de palettes *</label><input id="nl_n" type="number" min="1" placeholder="0" oninput="nlInfo()"></div>
+        <div class="f" style="width:150px"><label>DLC (MM/AA)</label><input id="nl_d" value="${y?`${mo}/${y.slice(2)}`:""}" placeholder="vide = sans DLC"></div>
+        <div class="f" id="nl_capf" style="width:170px;display:none"><label>Capacité du nouvel empl.</label><input id="nl_cap" type="number" min="1"></div></div>
+      <label id="nl_growl" style="display:none;gap:8px;align-items:center"><input type="checkbox" id="nl_grow" checked> <span></span></label>
+      <div class="f"><label>Référence (bon de livraison…)</label><input id="nl_ref"></div></div>`,
+  [["Annuler"],["Ajouter","pri",async()=>{
+    const raw=($("#nl_to").value||"").trim(), t=nlDest(), k=parseInt($("#nl_n").value), dRaw=$("#nl_d").value.trim(), dlc=dRaw===""?"":parseDlcCell(dRaw);
+    if(!t){ toast(raw?`Code d'emplacement illisible « ${raw} » (ex. D303).`:"Indiquez l'emplacement.",true); return false; }
+    if(!(k>=1)){ toast("Indiquez le nombre de palettes.",true); return false; }
+    if(dlc===null){ toast(`DLC illisible « ${dRaw} » : utilisez le format MM/AA.`,true); return false; }
+    let lid=t.id;
+    if(t.isNew){ const c=Math.max(k,parseInt($("#nl_cap").value)||k); await backend.put("locations",lid,{aisle:t.aisle,pos:t.pos,level:0,cap:c}); }
+    else { const l=S.locations[lid], free=cap(l)-used(byLoc(),lid);
+      if(k>free){ if(!$("#nl_grow").checked){ toast(`${L(lid)} : seulement ${free} place(s) libre(s).`,true); return false; }
+        await backend.put("locations",lid,{...l,cap:used(byLoc(),lid)+k}); } }
+    await addQty(lid,x.product,dlc,k); await logMove({type:"ENTREE",product:x.product,dlc,qty:k,from:"",to:lid,ref:$("#nl_ref").value.trim()});
+    toast(`${k} palette(s) ${x.product} ajoutée(s) à ${L(lid)}${t.isNew?" — emplacement créé":""}.`); }, !canWrite]]);
+  setTimeout(()=>$("#nl_to")?.focus(),30); }
+/* {id, aisle, pos, isNew} pour le code tapé, ou null s'il est illisible */
+function nlDest(){ const v=($("#nl_to")?.value||"").toUpperCase().replace(/\s+/g,""); if(!v) return null;
+  const hit=Object.values(S.locations).find(l=>L(l.id).toUpperCase()===v||l.id.toUpperCase()===v); if(hit) return {id:hit.id,aisle:hit.aisle,pos:hit.pos,isNew:false};
+  const p=parseLocCell(v); return p ? {id:p.id,aisle:p.aisle,pos:p.pos,isNew:p.isNew} : null; }
+function nlInfo(){ const info=$("#nl_info"), gl=$("#nl_growl"), cf=$("#nl_capf"); if(!info) return; const t=nlDest(), k=parseInt($("#nl_n").value)||0;
+  gl.style.display="none"; cf.style.display="none";
+  if(!t){ info.textContent=$("#nl_to").value?"Code illisible (ex. D303).":""; return; }
+  if(t.isNew){ const same=Object.values(S.locations).find(l=>l.aisle===t.aisle); cf.style.display="flex"; const ci=$("#nl_cap"); if(!ci.value) ci.value=same?cap(same):Math.max(k,1);
+    info.innerHTML=`<b>${esc(t.aisle+String(t.pos).padStart(2,"0"))}</b> n'existe pas encore : il sera créé${same?` dans le dépôt ${esc(t.aisle)}`:` (nouveau dépôt ${esc(t.aisle)})`}.`; return; }
+  const bl=byLoc(), xs=bl[t.id]||[], u=sumQ(xs), c=cap(S.locations[t.id]), free=c-u;
+  info.innerHTML=`<b>${esc(L(t.id))}</b> : ${u}/${c} palette(s) · ${xs.length?esc(xs.map(z=>`${z.product} ${qty(z)} (${fmtD(z.dlc)})`).join(", ")):"vide"} · ${free} place(s) libre(s)`;
+  if(k>free){ gl.style.display="flex"; gl.lastElementChild.textContent=` Augmenter la capacité de ${L(t.id)} de ${c} à ${u+k} palettes`; } }
 
 /* Ajout sur une ligne existante (même emplacement, produit, DLC) */
 function addToLine(id){ const x=S.stock[id]; if(!x) return; const free=cap(S.locations[x.loc])-used(byLoc(),x.loc);
@@ -1069,7 +1144,7 @@ function addSum(){ let t=0; document.querySelectorAll(".ap_q").forEach(i=>{ t+=M
 /* ============ EXPORT EXCEL (.xlsx généré dans le navigateur) ============ */
 function stockView(){ const f=ui.stockFilter, q=f.q.toLowerCase(); let ls=lines().sort(stockCmp);
   if (f.p) ls=ls.filter(x=>x.product===f.p);
-  if (f.st==="alert") ls=ls.filter(x=>status(x)!=="ok"); else if (f.st) ls=ls.filter(x=>status(x)===f.st);
+  if (f.st==="blocked") ls=ls.filter(isBlocked); else if (f.st==="alert") ls=ls.filter(x=>status(x)!=="ok"); else if (f.st) ls=ls.filter(x=>status(x)===f.st);
   if (q) ls=ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
   return ls; }
 function buildXlsx(sheets){
