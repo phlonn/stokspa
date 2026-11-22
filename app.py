@@ -44,6 +44,22 @@ def cle_api() -> str:
     return ""
 
 
+def mdp_admin() -> str:
+    """Mot de passe de « Gestion des données » : secrets Streamlit, ou secrets_streamlit.toml sur le PC."""
+    m = drive.secret("mot_de_passe_admin")
+    if m:
+        return str(m)
+    f = BASE / "secrets_streamlit.toml"
+    if f.exists():
+        import tomllib
+
+        try:
+            return str(tomllib.loads(f.read_text(encoding="utf-8")).get("mot_de_passe_admin", ""))
+        except Exception:
+            return ""
+    return ""
+
+
 # --- Pleine page : la page du dépôt occupe toute la fenêtre ------------------------
 st.markdown(
     """<style>
@@ -63,10 +79,10 @@ if "donnees" not in ss:
     except drive.DriveError as e:
         st.error(str(e))
         st.stop()
-    ss.rev, ss.ack, ss.ocr, ss.erreur, ss.dernier = 1, None, None, None, None
+    ss.rev, ss.ack, ss.ocr, ss.erreur, ss.dernier, ss.admin = 1, None, None, None, None, None
 
 depot = components.declare_component("depot", path=str(BASE / "composant"))
-msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.ack, ocr=ss.ocr, error=ss.erreur, key="depot", default=None)
+msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.ack, ocr=ss.ocr, error=ss.erreur, admin=ss.admin, key="depot", default=None)
 
 # --- Messages envoyés par la page ---------------------------------------------------
 if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
@@ -81,6 +97,13 @@ if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
             if nouveau != ss.donnees:
                 ss.donnees = nouveau
                 ss.rev += 1
+        elif genre == "admin":
+            attendu = mdp_admin()
+            if not attendu or attendu.startswith("CHOISISSEZ"):
+                ss.admin = {"id": msg["id"], "ok": False, "msg": "Aucun mot de passe n'est défini pour la gestion des données (voir README)."}
+            else:
+                ok = hmac.compare_digest(str(msg.get("pwd", "")).encode(), attendu.encode())
+                ss.admin = {"id": msg["id"], "ok": ok, "msg": "" if ok else "Mot de passe incorrect."}
         elif genre == "ocr":
             try:
                 ss.ocr = {"id": msg["id"], "result": lecteur.lire_json(msg.get("prompt", ""), msg.get("images") or [], cle_api())}
