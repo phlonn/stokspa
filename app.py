@@ -14,6 +14,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+import courriel
 import drive
 import lecteur
 import stockage
@@ -44,9 +45,9 @@ def cle_api() -> str:
     return ""
 
 
-def mdp_admin() -> str:
-    """Mot de passe de « Gestion des données » : secrets Streamlit, ou secrets_streamlit.toml sur le PC."""
-    m = drive.secret("mot_de_passe_admin")
+def reglage(nom: str) -> str:
+    """Valeur des secrets Streamlit (en ligne), ou de secrets_streamlit.toml sur le PC."""
+    m = drive.secret(nom)
     if m:
         return str(m)
     f = BASE / "secrets_streamlit.toml"
@@ -54,10 +55,25 @@ def mdp_admin() -> str:
         import tomllib
 
         try:
-            return str(tomllib.loads(f.read_text(encoding="utf-8")).get("mot_de_passe_admin", ""))
+            v = tomllib.loads(f.read_text(encoding="utf-8-sig")).get(nom, "")
+            return "" if str(v).startswith("CHOISISSEZ") else str(v)
         except Exception:
             return ""
     return ""
+
+
+def mdp_admin() -> str:
+    """Mot de passe de « Gestion des données »."""
+    return reglage("mot_de_passe_admin")
+
+
+def config_mail() -> dict:
+    return {
+        "utilisateur": reglage("smtp_utilisateur"),
+        "mot_de_passe": reglage("smtp_mot_de_passe").replace(" ", ""),  # Google l'affiche par groupes de 4
+        "hote": reglage("smtp_hote"),
+        "port": reglage("smtp_port"),
+    }
 
 
 # --- Pleine page : la page du dépôt occupe toute la fenêtre ------------------------
@@ -79,10 +95,12 @@ if "donnees" not in ss:
     except drive.DriveError as e:
         st.error(str(e))
         st.stop()
-    ss.rev, ss.ack, ss.ocr, ss.erreur, ss.dernier, ss.admin = 1, None, None, None, None, None
+    ss.rev, ss.ack, ss.ocr, ss.erreur, ss.dernier, ss.admin, ss.mail = 1, None, None, None, None, None, None
 
+_cm = config_mail()
+etat_mail = {"configured": bool(_cm["utilisateur"] and _cm["mot_de_passe"]), "from": _cm["utilisateur"], "res": ss.mail}
 depot = components.declare_component("depot", path=str(BASE / "composant"))
-msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.ack, ocr=ss.ocr, error=ss.erreur, admin=ss.admin, key="depot", default=None)
+msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.ack, ocr=ss.ocr, error=ss.erreur, admin=ss.admin, mail=etat_mail, key="depot", default=None)
 
 # --- Messages envoyés par la page ---------------------------------------------------
 if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
@@ -104,6 +122,12 @@ if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
             else:
                 ok = hmac.compare_digest(str(msg.get("pwd", "")).encode(), attendu.encode())
                 ss.admin = {"id": msg["id"], "ok": ok, "msg": "" if ok else "Mot de passe incorrect."}
+        elif genre == "mail":
+            try:
+                dest = courriel.envoyer(config_mail(), msg.get("to", ""), msg.get("subject", ""), msg.get("text", ""), msg.get("file") or {})
+                ss.mail = {"id": msg["id"], "ok": True, "msg": "E-mail envoyé à " + ", ".join(dest) + "."}
+            except courriel.CourrielError as e:
+                ss.mail = {"id": msg["id"], "ok": False, "msg": str(e)}
         elif genre == "ocr":
             try:
                 ss.ocr = {"id": msg["id"], "result": lecteur.lire_json(msg.get("prompt", ""), msg.get("images") or [], cle_api())}
