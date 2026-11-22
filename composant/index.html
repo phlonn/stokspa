@@ -141,6 +141,7 @@ table.compact button.sm{padding:1px 8px;font-size:12px}
   <a href="#commande" data-v="commande">▣ Commande (PDF)</a>
   <a href="#mouvements" data-v="mouvements">⇄ Mouvements</a>
   <a href="#parametres" data-v="parametres">⚙ Produits & emplacements</a>
+  <a href="#donnees" data-v="donnees">🔒 Gestion des données</a>
   <div class="sp"></div>
   <div class="mode" id="mode">Connexion…</div>
 </nav>
@@ -256,6 +257,9 @@ function stOnRender(a){
   if(!ST.ready){ ST.ready=true; }
   if(a.error && a.error.id!==ST.lastErr){ ST.lastErr=a.error.id; toast(a.error.msg,true); }
   if(ST.cur && a.ack===ST.cur.id){ if(ST.cur.kind==="ops") ST.inflight=[]; ST.cur=null; }
+  if(a.admin && ST.adminWait===a.admin.id){ ST.adminWait=null; ui.adm.busy=false;
+    if(a.admin.ok){ ui.adm.ok=true; ui.adm.err=""; } else ui.adm.err=a.admin.msg||"Mot de passe incorrect.";
+    render(); }
   if(a.ocr && ST.ocr[a.ocr.id]){ const p=ST.ocr[a.ocr.id]; delete ST.ocr[a.ocr.id]; a.ocr.error ? p.reject(a.ocr.error) : p.resolve(a.ocr.result); }
   if(a.data && a.rev!==ST.rev){ ST.rev=a.rev; const d=a.data;
     for(const c of COLLS) S[c]=d[c]||{}; S.settings={alertMonths:2,...(d.settings||{})};
@@ -334,7 +338,7 @@ async function addQty(loc, product, dlc, delta){ _minD=null;
 async function logMove(m){ await backend.put("movements",uid("MV"),{...m,ts:Date.now(),op:opName||""}); }
 
 /* ============ ROUTAGE ============ */
-const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements"};
+const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements",donnees:"Gestion des données"};
 function route(){ const h=location.hash.slice(1); ui.view = TITLES[h] ? h : "accueil"; render(); }
 window.addEventListener("hashchange", route);
 
@@ -346,7 +350,7 @@ function doRender(){
   const active = document.activeElement; const keepId = active && active.id && $("#view").contains(active) ? active.id : null; const selStart = keepId && active.selectionStart;
   if (!loaded && !backend){ $("#view").innerHTML = `<div class="empty">Chargement…</div>`; return; }
   if (backend===fileBackend && !FS.name){ $("#view").innerHTML = vFileStart(); return; }
-  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams})[ui.view]();
+  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,donnees:vData})[ui.view]();
   fitHeights();
   if (keepId){ const el=document.getElementById(keepId); if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selStart);}catch(e){} } }
 }
@@ -465,10 +469,13 @@ function sortTh(k,label,cls=""){ const s=ui.stockSort, on=s.k===k; return `<th c
 const prodOptions = sel => Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>`<option value="${esc(p.code)}" ${sel===p.code?"selected":""}>${esc(p.code)}</option>`).join("");
 
 /* ============ RÉCEPTION ============ */
-/* Emplacements ayant de la place. Priorité : ceux contenant déjà le produit, puis le dépôt préféré, puis l'ordre dépôt/position. */
-function freeLocs(prefAisle, product, exclude=[]){
+/* Emplacements ayant de la place. Priorité : ceux contenant déjà le produit avec la même DLC,
+   puis ceux contenant déjà le produit (autre DLC), puis le dépôt préféré, puis l'ordre dépôt/position. */
+function prodRank(bl, lid, product, dlc){ const xs=(bl[lid]||[]).filter(x=>x.product===product);
+  if(!product || !xs.length) return 2; return dlc && xs.some(x=>dlcM(x.dlc)===dlcM(dlc)) ? 0 : 1; }
+function freeLocs(prefAisle, product, exclude=[], dlc=(ui.recep&&ui.recep.dlc)||""){
   const bl = byLoc(); const ex=new Set(exclude);
-  const has = l => product && (bl[l.id]||[]).some(x=>x.product===product) ? 0 : 1;
+  const has = l => prodRank(bl, l.id, product, dlc);
   return Object.values(S.locations).filter(l=>!ex.has(l.id) && cap(l)-used(bl,l.id)>0)
     .map(l=>({...l, free:cap(l)-used(bl,l.id)}))
     .sort((a,b)=>{
@@ -492,7 +499,7 @@ function vRecep(){
       <div class="f" style="flex:1"><label>Dépôt préféré</label><select onchange="ui.recep.aisle=this.value;ui.recep.plan=null;render()"><option value="">Indifférent</option>${aisles.map(a=>`<option ${r.aisle===a?"selected":""}>${esc(a)}</option>`).join("")}</select></div></div>
       <div class="f"><label>Référence (bon de livraison, fournisseur…)</label><input id="r_r" value="${esc(r.ref)}" oninput="ui.recep.ref=this.value"></div>
       ${opField()}
-      <div class="muted">${nFree} place(s) palette libre(s) dans le dépôt. Les emplacements contenant déjà ce produit sont proposés en premier.</div>
+      <div class="muted">${nFree} place(s) palette libre(s) dans le dépôt. Les emplacements contenant déjà ce produit sont proposés en premier (d'abord ceux avec la même DLC).</div>
       <div><button class="pri" onclick="planRecep()" ${ro()}>Proposer les emplacements →</button></div>
     </div></div>
     <div class="card"><h2>2. Placement & validation</h2>${r.plan ? (()=>{ const bl=byLoc(); const tot=r.plan.reduce((s,x)=>s+x.n,0);
@@ -500,16 +507,34 @@ function vRecep(){
       <div class="scroll"><table><tr><th>Emplacement</th><th>Contenu actuel</th><th class="num">Palettes à poser</th><th></th></tr>${r.plan.map((x,i)=>{ const l=S.locations[x.loc]; const others=r.plan.filter((_,j)=>j!==i).map(y=>y.loc);
         const opts=[l?{...l,free:cap(l)-used(bl,l.id)}:null,...freeLocs(r.aisle,r.product,[x.loc,...others])].filter(Boolean);
         const content=(bl[x.loc]||[]); const n0=sumQ(content);
-        return `<tr><td><select onchange="movePlanLoc(${i},this.value)">${opts.map(o=>`<option value="${esc(o.id)}" ${o.id===x.loc?"selected":""}>${esc(L(o.id))} (${o.free} libre${o.free>1?"s":""})</option>`).join("")}</select></td>
+        const opt=o=>`<option value="${esc(o.id)}" ${o.id===x.loc?"selected":""}>${esc(L(o.id))} (${o.free} libre${o.free>1?"s":""})${prodRank(bl,o.id,r.product,r.dlc)<2?" ★":""}</option>`;
+        const grp=(lab,arr)=>arr.length?`<optgroup label="${lab}">${arr.map(opt).join("")}</optgroup>`:"";
+        const rk=o=>prodRank(bl,o.id,r.product,r.dlc);
+        return `<tr><td><select onchange="movePlanLoc(${i},this.value)">${grp("★ Déjà ce produit, même DLC",opts.filter(o=>rk(o)===0))}${grp("★ Déjà ce produit, autre DLC",opts.filter(o=>rk(o)===1))}${grp("Autres emplacements",opts.filter(o=>rk(o)===2))}</select></td>
         <td class="muted" style="font-size:12.5px">${n0?`${n0}/${cap(l)} · ${content.map(c=>`${esc(c.product)} ${qty(c)}`).join(", ")}`:`vide (${cap(l)} places)`}</td>
         <td class="num"><input type="number" min="1" max="${l?cap(l)-used(bl,l.id):1}" value="${x.n}" style="width:70px" onchange="ui.recep.plan[${i}].n=Math.max(1,parseInt(this.value)||1);render()"></td>
         <td><button class="sm" onclick="ui.recep.plan.splice(${i},1);render()" title="Retirer">✕</button></td></tr>`; }).join("")}</table></div>
       ${tot!==r.n?`<div class="banner" style="margin:10px 0 0">${tot<r.n?`Il reste <b>${r.n-tot}</b> palette(s) à placer.`:`<b>${tot-r.n}</b> palette(s) de trop par rapport aux ${r.n} reçues.`}</div>`:""}
       <div class="row" style="margin-top:10px"><button class="sm" onclick="addPlanLoc()" ${tot>=r.n?"disabled":""}>+ Ajouter un emplacement</button></div>
+      ${prodLocsHtml(bl)}
       <div class="row" style="margin-top:14px"><button class="pri" onclick="doRecep()" ${ro()} ${tot===r.n?"":"disabled"}>Valider l'entrée de ${r.n} palette(s)</button><button onclick="ui.recep.plan=null;render()">Annuler</button></div>`; })()
       : `<div class="empty">Remplissez le formulaire puis cliquez sur « Proposer les emplacements ».</div>`}
     </div></div>`;
 }
+/* Emplacements qui contiennent déjà le produit reçu : un clic les met dans le placement. */
+function prodLocsHtml(bl){ const r=ui.recep; const inPlan=new Set(r.plan.map(x=>x.loc));
+  const ls=Object.values(S.locations).filter(l=>prodRank(bl,l.id,r.product,r.dlc)<2)
+    .sort((a,b)=>prodRank(bl,a.id,r.product,r.dlc)-prodRank(bl,b.id,r.product,r.dlc)||locSort(a,b));
+  if(!ls.length) return `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Ce produit n'est encore dans aucun emplacement.</p>`;
+  return `<div style="margin-top:14px"><div style="font-size:12.5px;font-weight:600;margin-bottom:6px">★ Emplacements qui contiennent déjà ${esc(r.product)} <span class="muted" style="font-weight:400">— cliquez pour y poser les palettes</span></div>
+    <div class="row" style="gap:6px">${ls.map(l=>{ const free=cap(l)-used(bl,l.id), xs=(bl[l.id]||[]).filter(x=>x.product===r.product), same=prodRank(bl,l.id,r.product,r.dlc)===0;
+      return `<button class="sm${same?" yellow":""}" onclick="useRecepLoc('${esc(l.id)}')" ${free<=0||inPlan.has(l.id)?"disabled":""} title="${esc(xs.map(x=>qty(x)+" pal. DLC "+fmtD(x.dlc)).join(", "))}"><b>${esc(L(l.id))}</b> · ${sumQ(xs)} pal. ${xs.map(x=>fmtD(x.dlc)).join(" ")} · ${free>0?free+" libre(s)":"plein"}${inPlan.has(l.id)?" ✓":""}</button>`; }).join("")}</div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">En jaune : même DLC que la réception.</p></div>`; }
+function useRecepLoc(id){ const r=ui.recep; if(r.plan.some(x=>x.loc===id)) return;
+  const tot=r.plan.reduce((s,x)=>s+x.n,0), free=cap(S.locations[id])-used(byLoc(),id);
+  if(tot<r.n) r.plan.push({loc:id,n:Math.min(r.n-tot,free)});
+  else return movePlanLoc(r.plan.length-1,id); // tout est déjà placé : remplace le dernier emplacement
+  render(); }
 const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 function yearOpts(sel){ const y=new Date().getFullYear(); let o=""; for(let k=y-1;k<=y+5;k++) o+=`<option value="${k}" ${String(k)===sel?"selected":""}>${String(k).slice(2)}</option>`; return o; }
 function setDlc(){ const r=ui.recep; r.dlcMo=$("#r_dm").value; r.dlcY=$("#r_dy").value; r.dlc=(r.dlcMo&&r.dlcY)?`${r.dlcY}-${r.dlcMo}`:""; r._forceExp=false; r.plan=null; render(); }
@@ -712,6 +737,53 @@ function vMoves(){
   <div class="card">${mv.length?`<div class="scroll" style="max-height:640px"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>De</th><th>Vers</th><th>Réf.</th><th>Opérateur</th></tr>
   ${mv.slice(0,500).map(m=>`<tr><td>${fmtTs(m.ts)}</td><td><span class="tag ${(MV[m.type]||["",""])[1]}">${(MV[m.type]||[m.type])[0]}</span></td><td class="mono">${esc(m.product)}</td><td class="num"><b>${mq(m)}</b></td><td>${fmtD(m.dlc)}</td><td class="mono">${esc(L(m.from)||"—")}</td><td class="mono">${esc(L(m.to)||"—")}</td><td>${esc(m.ref||"")}</td><td>${esc(m.op||"")}</td></tr>`).join("")}</table></div>${mv.length>500?`<p class="muted">500 premiers affichés sur ${mv.length}.</p>`:""}`:`<div class="empty">Aucun mouvement.</div>`}</div>`;
 }
+
+/* ============ GESTION DES DONNÉES (protégée par mot de passe) ============
+   Le mot de passe est vérifié par le serveur ; l'accès reste ouvert jusqu'au rechargement de la page. */
+const admState = () => ui.adm ||= {ok:false, err:"", busy:false, sel:{}, q:"", type:"SORTIE", ref:""};
+function admLogin(){ const a=admState(), pwd=$("#adm_pwd")?.value||""; if(!pwd) return;
+  if(!ST.ready) return toast("Serveur non connecté : rechargez la page.",true);
+  a.busy=true; a.err=""; const id=uid("AD"); ST.adminWait=id; stPost({kind:"admin", id, pwd}); render(); }
+function vData(){ const a=admState();
+  if(!a.ok) return `<div class="card" style="max-width:460px"><h2>🔒 Accès protégé</h2>
+    <p class="muted" style="margin-top:0">Cet écran permet de supprimer du stock. Entrez le mot de passe de gestion des données.</p>
+    <form class="row" onsubmit="event.preventDefault();admLogin()"><div class="f" style="flex:1"><label>Mot de passe</label><input id="adm_pwd" type="password" autocomplete="current-password" ${a.busy?"disabled":""}></div>
+    <button class="pri" type="submit" ${a.busy?"disabled":""}>${a.busy?"Vérification…":"Ouvrir"}</button></form>
+    ${a.err?`<p style="color:var(--bad);margin-bottom:0">${esc(a.err)}</p>`:""}</div>`;
+  const per={}; lines().forEach(x=>{ const p=(per[x.product] ||= {n:0,locs:new Set(),dlcs:new Set()}); p.n+=qty(x); p.locs.add(x.loc); if(dlcM(x.dlc)) p.dlcs.add(dlcM(x.dlc)); });
+  const q=a.q.trim().toLowerCase();
+  const prods=Object.keys(per).sort().filter(c=>!q||(c+" "+prodName(c)).toLowerCase().includes(q));
+  Object.keys(a.sel).forEach(c=>{ if(!per[c]) delete a.sel[c]; });
+  const selC=Object.keys(a.sel).filter(c=>a.sel[c]), selN=selC.reduce((s,c)=>s+per[c].n,0), selL=new Set(selC.flatMap(c=>[...per[c].locs])).size;
+  return `<div class="card"><div class="row">
+      <div class="f" style="flex:1"><label>Filtrer les produits</label><input id="adm_q" value="${esc(a.q)}" placeholder="Code ou désignation…" oninput="admState().q=this.value;render()"></div>
+      <button onclick="${prods.map(c=>`admState().sel['${esc(c)}']=true;`).join("")}render()">Tout cocher${q?" (filtrés)":""}</button>
+      <button onclick="admState().sel={};render()">Tout décocher</button>
+      <span style="flex:1"></span>
+      <button onclick="admState().ok=false;admState().sel={};render()">🔒 Verrouiller</button></div></div>
+  <div class="grid2">
+    <div class="card"><h2>Produits en stock <span class="muted" style="font-weight:400">(${prods.length})</span></h2>
+      ${prods.length?`<div class="scroll fill-h"><table class="compact"><tr><th style="width:30px"></th><th>Produit</th><th class="num">Palettes</th><th class="num">Empl.</th><th>DLC</th></tr>
+      ${prods.map(c=>{ const p=per[c]; return `<tr class="click" onclick="admState().sel['${esc(c)}']=!admState().sel['${esc(c)}'];render()" style="${a.sel[c]?"background:var(--badbg)":""}">
+        <td><input type="checkbox" ${a.sel[c]?"checked":""} onclick="event.stopPropagation();admState().sel['${esc(c)}']=this.checked;render()"></td>
+        <td class="mono">${esc(c)}${prodName(c)!==c?` <span class="muted">· ${esc(prodName(c))}</span>`:""}</td><td class="num"><b>${p.n}</b></td><td class="num">${p.locs.size}</td>
+        <td style="font-size:12.5px">${[...p.dlcs].sort().map(d=>DL(c,d)).join(" ")||'<span class="muted">sans DLC</span>'}</td></tr>`; }).join("")}</table></div>`:`<div class="empty">Aucun produit en stock.</div>`}
+    </div>
+    <div class="card"><h2>Suppression</h2>
+      ${selC.length?`<p style="margin-top:0"><b>${selC.length}</b> produit(s) sélectionné(s) · <b>${selN}</b> palette(s) sur <b>${selL}</b> emplacement(s).</p>
+        <p class="muted mono" style="font-size:12.5px;max-height:120px;overflow:auto">${selC.map(esc).join(", ")}</p>`:`<p class="muted" style="margin-top:0">Cochez un ou plusieurs produits dans la liste.</p>`}
+      <div class="row"><div class="f" style="width:200px"><label>Type de sortie</label><select onchange="admState().type=this.value"><option value="SORTIE" ${a.type==="SORTIE"?"selected":""}>Sortie</option><option value="REBUT" ${a.type==="REBUT"?"selected":""}>Rebut / destruction</option></select></div>
+      <div class="f" style="flex:1"><label>Motif / référence</label><input id="adm_ref" value="${esc(a.ref)}" placeholder="ex. inventaire, remise à zéro…" oninput="admState().ref=this.value"></div></div>
+      <p class="muted" style="font-size:12.5px">Toutes les palettes de ces produits sont retirées du stock, dans tous les emplacements et pour toutes les DLC. Les produits restent dans la liste des produits ; chaque retrait est noté dans les mouvements.</p>
+      <button class="danger" onclick="admPurge()" ${selC.length&&canWrite?"":"disabled"}>🗑 Supprimer ${selN} palette(s)</button>
+    </div></div>`;
+}
+function admPurge(){ const a=admState(); const codes=Object.keys(a.sel).filter(c=>a.sel[c]); if(!codes.length) return;
+  const xs=lines().filter(x=>codes.includes(x.product)), n=sumQ(xs);
+  modal("Confirmer la suppression",`<p>Retirer définitivement <b>${n} palette(s)</b> de <b>${codes.length}</b> produit(s) du stock ?</p><p class="muted mono" style="font-size:12.5px;max-height:120px;overflow:auto">${codes.map(esc).join(", ")}</p><p style="margin-bottom:0"><b>Cette action ne peut pas être annulée.</b></p>`,
+  [["Annuler"],[`Supprimer ${n} palette(s)`,"danger",async()=>{ const ref=a.ref.trim()||"Suppression (gestion des données)"; let k=0;
+    for(const x of lines().filter(y=>codes.includes(y.product))){ const q=qty(x); await removeQty(x,q,a.type,ref); k+=q; }
+    a.sel={}; toast(`${k} palette(s) retirée(s) du stock (${codes.length} produit(s)).`); render(); }, !canWrite]]); }
 
 /* ============ PARAMÈTRES ============ */
 function vParams(){
