@@ -11,7 +11,7 @@ import drive
 
 FICHIER = "donnees_depot.json"
 LOCAL = Path(__file__).parent / "data" / "stock.json"
-COLLECTIONS = ("products", "locations", "stock", "movements")
+COLLECTIONS = ("products", "locations", "stock", "movements", "blocks")
 
 
 def _vide() -> dict:

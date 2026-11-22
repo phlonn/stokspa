@@ -98,9 +98,9 @@ if "donnees" not in ss:
     ss.rev, ss.ack, ss.ocr, ss.erreur, ss.dernier, ss.admin, ss.mail = 1, None, None, None, None, None, None
 
 _cm = config_mail()
-etat_mail = {"configured": bool(_cm["utilisateur"] and _cm["mot_de_passe"]), "from": _cm["utilisateur"], "res": ss.mail}
+etat_mail = {"configured": bool(_cm["utilisateur"] and _cm["mot_de_passe"]), "from": _cm["utilisateur"], "res": ss.get("mail")}
 depot = components.declare_component("depot", path=str(BASE / "composant"))
-msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.ack, ocr=ss.ocr, error=ss.erreur, admin=ss.admin, mail=etat_mail, key="depot", default=None)
+msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.get("ack"), ocr=ss.get("ocr"), error=ss.get("erreur"), admin=ss.get("admin"), mail=etat_mail, key="depot", default=None)
 
 # --- Messages envoyés par la page ---------------------------------------------------
 if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
