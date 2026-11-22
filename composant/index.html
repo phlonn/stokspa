@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestion de dépôt – Palettes d'eau</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f5f8; --panel:#fff; --ink:#14212e; --muted:#5f6f80; --line:#dde3ea;
+  --nav:#0f2233; --nav2:#17324a; --accent:#0a7cc2; --accent2:#e6f2fa;
+  --ok:#2e9d5b; --okbg:#e3f4ea; --soon:#d98a00; --soonbg:#fff2d6; --bad:#c9372c; --badbg:#fbe4e2; --free:#eef1f4;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--bg);font-size:14px}
+.mono{font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+nav{background:var(--nav);color:#cfe0ee;padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+nav .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;color:#fff;font-weight:700;font-size:15px;line-height:1.2}
+nav .brand svg{flex:none}
+nav a{display:flex;align-items:center;gap:10px;color:#cfe0ee;text-decoration:none;padding:9px 10px;border-radius:8px;font-weight:500}
+nav a:hover{background:var(--nav2)}
+nav a.on{background:var(--accent);color:#fff}
+nav .sp{flex:1}
+nav .mode{font-size:12px;padding:8px 10px;border-radius:8px;background:var(--nav2);line-height:1.4}
+main{padding:22px 28px 60px;min-width:0}
+header.top{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+header.top h1{font-size:21px;margin:0;flex:1;min-width:200px}
+.search{position:relative}
+.search input{width:280px}
+.search .res{position:absolute;right:0;top:40px;width:380px;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:20;max-height:360px;overflow:auto}
+.search .res div{padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.search .res div:hover{background:var(--accent2)}
+input,select,textarea{font:inherit;color:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;min-width:0}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-weight:500;color:var(--ink)}
+button:hover{background:#f6f8fa}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+button.pri:hover{background:#086aa6}
+button.yellow{background:#ffd43b;border-color:#f2c200;color:#3d3000}
+button.yellow:hover{background:#fcc419}
+button.danger{color:var(--bad);border-color:#efc3bf}
+button.danger:hover{background:var(--badbg)}
+button.sm{padding:4px 9px;font-size:12.5px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.card h2 .x{flex:1}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.kpi .l{color:var(--muted);font-size:12.5px;font-weight:500}
+.kpi .v{font-size:26px;font-weight:700;margin-top:4px}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi.bad .v{color:var(--bad)} .kpi.soon .v{color:var(--soon)}
+.bar{height:6px;background:var(--free);border-radius:3px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;background:#fafbfc;position:sticky;top:0}
+tr.click{cursor:pointer} tr.click:hover td{background:#f7fafc}
+tr.deprow:hover td{background:rgba(0,0,0,.05)}
+tr.prod-sep td{border-top:2px solid #000}
+table.compact td{padding:3px 10px;line-height:1.25}
+table.compact th{padding:6px 10px}
+table.compact .tag{padding:1px 7px}
+table.compact button.sm{padding:1px 8px;font-size:12px}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+.t-ok{background:var(--okbg);color:var(--ok)} .t-soon{background:var(--soonbg);color:#a26700} .t-bad{background:var(--badbg);color:var(--bad)}
+.t-in{background:var(--okbg);color:var(--ok)} .t-out{background:var(--accent2);color:var(--accent)} .t-mv{background:#efeaf9;color:#6a46b8} .t-rb{background:var(--badbg);color:var(--bad)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.f{display:flex;flex-direction:column;gap:5px}
+.f label{font-size:12.5px;color:var(--muted);font-weight:500}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1000px){.grid2{grid-template-columns:1fr}}
+.muted{color:var(--muted)}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+.scroll{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.scroll table th{border-bottom:1px solid var(--line)}
+/* plan */
+.depots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;align-items:start}
+.aisle{margin-bottom:0}
+.lvh{font-size:11px;color:var(--muted);font-weight:600;text-align:center;padding-bottom:2px}
+.aisle h3{margin:0 0 8px;font-size:14px}
+.rack{display:grid;gap:4px;overflow-x:auto;padding-bottom:4px}
+.cell{min-width:74px;height:58px;border-radius:6px;border:1px solid var(--line);background:var(--free);padding:4px 6px;font-size:11px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.cell .id{font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;font-weight:600;font-size:10.5px;color:var(--muted)}
+.cell .p{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.ok{background:var(--okbg);border-color:#b7e0c6}
+.cell.soon{background:var(--soonbg);border-color:#f1d18a}
+.cell.bad{background:var(--badbg);border-color:#efb5b0}
+.cell.hl{outline:3px solid var(--accent);outline-offset:1px}
+.cell:hover{filter:brightness(.97)}
+.cell{height:auto;min-height:58px;gap:3px}
+.cell .plist{display:grid;grid-template-columns:max-content max-content max-content;column-gap:5ch;row-gap:1px;align-items:center;font-size:12px;font-family:"IBM Plex Sans",sans-serif;font-variant-numeric:tabular-nums}
+.cell .pl{display:contents}
+.cell .pl .pc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .pl b{text-align:right}
+.cell .pl .pd{font-variant-numeric:tabular-nums;text-align:left}
+.dlc-g{color:var(--ok);font-weight:700} .dlc-r{color:var(--bad);font-weight:700} .dlc-n{color:var(--muted)}
+.cell .id .lc{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em}
+.impt input{padding:4px 6px;font-size:13px}
+.cell .fill{display:block;height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden}
+.cell .fill i{display:block;height:100%;background:var(--accent)}
+.lvl{font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px;border:1px solid var(--line)}
+/* modal / toast */
+.ov{position:fixed;inset:0;background:rgba(15,34,51,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal{background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
+.modal h3{margin:0 0 12px;font-size:17px}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13.5px}
+.kv div:nth-child(odd){color:var(--muted)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
+#toast.err{background:var(--bad)}
+.banner{background:var(--soonbg);border:1px solid #f1d18a;color:#7a5200;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px}
+.steps{counter-reset:s;padding-left:0;list-style:none;margin:0}
+.steps li{padding:4px 0 4px 28px;position:relative}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:4px;width:20px;height:20px;border-radius:50%;background:var(--accent2);color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+@media (max-width:760px){.app{grid-template-columns:1fr} nav{flex-direction:row;overflow-x:auto;padding:8px} nav .brand,nav .sp,nav .mode{display:none} nav a{white-space:nowrap} main{padding:16px} .search input{width:100%}}
+</style>
+</head>
+<body>
+<div class="app">
+<nav id="nav">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.4 6 7.9 6 11a6 6 0 0 1-12 0c0-3.1 2.5-6.6 6-11z" fill="#3aa6e6"/><path d="M9.2 14.2a3 3 0 0 0 2.8 2.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>Dépôt<br><span style="font-weight:400;font-size:12px;color:#9fb8cc">Gestion palettes</span></span>
+  </div>
+  <a href="#accueil" data-v="accueil">▦ Tableau de bord</a>
+  <a href="#plan" data-v="plan">▤ Plan du dépôt</a>
+  <a href="#stock" data-v="stock">☰ Stock palettes</a>
+  <a href="#reception" data-v="reception">⤓ Réception</a>
+  <a href="#sortie" data-v="sortie">⤒ Sortie (FEFO)</a>
+  <a href="#commande" data-v="commande">▣ Commande (PDF)</a>
+  <a href="#mouvements" data-v="mouvements">⇄ Mouvements</a>
+  <a href="#parametres" data-v="parametres">⚙ Produits & emplacements</a>
+  <div class="sp"></div>
+  <div class="mode" id="mode">Connexion…</div>
+</nav>
+<main>
+  <header class="top">
+    <h1 id="title">Tableau de bord</h1>
+    <div class="search">
+      <input id="q" placeholder="Rechercher un emplacement ou un produit…" autocomplete="off">
+      <div class="res" id="qres" style="display:none"></div>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <div id="view"></div>
+</main>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ============ ÉTAT ============
+   Modèle : une ligne de stock = emplacement + produit + DLC (mois) + quantité de palettes.
+   Aucune palette n'est numérotée individuellement. */
+const S = {products:{}, locations:{}, stock:{}, movements:{}, pallets:{}, settings:{alertMonths:2}};
+const COLLS = ["products","locations","stock","movements","pallets"]; // "pallets" = ancien format, migré automatiquement
+let backend = null, canWrite = true, loaded = false, dbRef = null, migrating = false;
+let ui = {view:"accueil", hl:null, stockFilter:{p:"",st:"",q:""}, stockSort:{k:"product",dir:1}, mvFilter:{t:"",q:""}, recep:null, sortie:null};
+
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeId = s => String(s).trim().replace(/[^A-Za-z0-9_.~:@+-]/g,"_").slice(0,150) || "_";
+const uid = p => p + "-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2,6).toUpperCase();
+const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
+/* DLC au mois : "AAAA-MM". Périmé à partir du mois qui suit la DLC. */
+const dlcM = d => String(d||"").slice(0,7);
+const dkey = d => dlcM(d) || "9999-99"; // sans DLC = classé en dernier
+const monthsLeft = dlc => { const [y,m]=dlcM(dlc).split("-").map(Number); const n=new Date(); return (y*12+m-1)-(n.getFullYear()*12+n.getMonth()); };
+const alertM = () => { const v=parseInt(S.settings.alertMonths); return v>=0 ? v : 2; };
+const fmtD = d => { const v=dlcM(d); return v.length===7 ? v.slice(5)+"/"+v.slice(2,4) : "—"; };
+const fmtTs = t => new Date(t).toLocaleString("fr-BE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+const status = x => { if(!dlcM(x.dlc)) return "none"; const d = monthsLeft(x.dlc); return d < 0 ? "bad" : d <= alertM() ? "soon" : "ok"; };
+const stTag = x => { if(!dlcM(x.dlc)) return `<span class="tag" style="background:#eef1f4;color:var(--muted)">Sans DLC</span>`; const d = monthsLeft(x.dlc), s = status(x);
+  const txt = s==="bad" ? `Périmé (${-d} mois)` : d===0 ? "Ce mois-ci" : `${d} mois`;
+  return `<span class="tag t-${s}">${txt}</span>`; };
+const prodName = c => S.products[safeId(c)]?.name || c;
+const locSort = (a,b) => (a.aisle||"").localeCompare(b.aisle||"",undefined,{numeric:true}) || (a.pos-b.pos) || ((a.level||0)-(b.level||0));
+const locOf = id => S.locations[id] || {aisle:id,pos:0};
+const fefo = (a,b) => dkey(a.dlc).localeCompare(dkey(b.dlc)) || locSort(locOf(a.loc),locOf(b.loc));
+/* Code d'emplacement affiché attaché : dépôt + position (ex. D303) */
+const L = id => { const l=S.locations[id]; if(l) return `${l.aisle}${String(l.pos).padStart(2,"0")}${+l.level?"-"+l.level:""}`;
+  const pr=String(id||"").split("-"); if(pr.length===3 && pr[2]==="0") pr.pop(); return pr.join(""); };
+const cap = l => Math.max(1, parseInt(l?.cap) || 1);
+const qty = x => Math.max(0, parseInt(x?.qty) || 0);
+const lines = () => Object.values(S.stock).filter(x=>qty(x)>0);
+const lineId = (loc,product,dlc) => safeId(`${loc}__${product}__${dlcM(dlc)}`);
+const sumQ = arr => arr.reduce((s,x)=>s+qty(x),0);
+const byLoc = () => { const m={}; for (const x of lines()) if (x.loc) (m[x.loc] ||= []).push(x); return m; };
+const used = (bl,id) => sumQ(bl[id]||[]);
+const worst = xs => xs.some(x=>status(x)==="bad") ? "bad" : xs.some(x=>status(x)==="soon") ? "soon" : "ok";
+const totalCap = () => Object.values(S.locations).reduce((s,l)=>s+cap(l),0);
+/* Couleur des DLC : pour chaque produit, la DLC la plus proche en vert, toutes les autres en rouge */
+let _minD=null;
+const minDlc = () => { if(!_minD){ _minD={}; for(const x of lines()){ const d=dlcM(x.dlc); if(d && (!_minD[x.product]||d<_minD[x.product])) _minD[x.product]=d; } } return _minD; };
+const dlcCls = (product,dlc) => !dlcM(dlc) ? "dlc-n" : dlcM(dlc)===minDlc()[product] ? "dlc-g" : "dlc-r";
+const DL = (product,dlc) => `<span class="${dlcCls(product,dlc)}">${fmtD(dlc)}</span>`;
+/* Couleur de fond des lignes par dépôt (Stock par emplacement) */
+const DEPOT_BG = {D:"#ffe3c2", E:"#ffe3c2", F:"#d9f2df", G:"#ffffff", H:"#d6e8fb"};
+const depotBg = loc => DEPOT_BG[(locOf(loc).aisle||"").toUpperCase()] || "";
+const mq = m => Math.max(1, parseInt(m.qty) || 1); // quantité d'un mouvement (anciens mouvements = 1 palette)
+let opName = ""; try { opName = localStorage.getItem("depot_op") || ""; } catch(e){}
+
+function toast(msg, err){ const t=$("#toast"); t.textContent=msg; t.className=err?"err":""; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",3200); }
+
+/* ============ PERSISTANCE ============ */
+const localBackend = {
+  async put(c,id,data){ S[c][id]={...data,id}; saveLocal(); render(); },
+  async del(c,id){ delete S[c][id]; saveLocal(); render(); },
+  async setSettings(d){ S.settings={...S.settings,...d}; saveLocal(); render(); }
+};
+function saveLocal(){ try{ const {pallets,...rest}=S; localStorage.setItem("depot_data", JSON.stringify(rest)); }catch(e){} }
+function loadLocal(){ try{ const d=JSON.parse(localStorage.getItem("depot_data")||"null"); if(d) Object.assign(S,d);
+  // ancien format local : palettes individuelles -> lignes de quantité
+  if (d && d.pallets && Object.keys(d.pallets).length){ for(const p of Object.values(d.pallets)){ const id=lineId(p.loc,p.product,p.dlc); const cur=S.stock[id]; S.stock[id]={id,loc:p.loc,product:p.product,dlc:dlcM(p.dlc),qty:qty(cur)+1}; } S.pallets={}; saveLocal(); }
+  S.stock ||= {}; }catch(e){} }
+
+function makeDbBackend(db){
+  const handle = e => { if (e && e.code==="invalid_argument"){ canWrite=false; toast("Vous n'avez pas les droits d'écriture sur ce dépôt.",true); render(); } else if (e && e.code==="quota_exceeded"){ toast("Capacité de la base atteinte : supprimez d'anciens mouvements.",true);} else toast("Erreur d'enregistrement, réessayez.",true); throw e; };
+  return {
+    put:(c,id,data)=>db.doc(c+"/"+id).set({...data,id}).catch(handle),
+    del:(c,id)=>db.doc(c+"/"+id).delete().catch(handle),
+    setSettings:d=>db.doc("config/settings").set({...S.settings,...d}).catch(handle)
+  };
+}
+
+/* ============ VERSION HÉBERGÉE (Streamlit + Google Drive) ============
+   La page tourne dans Streamlit. Chaque modification est appliquée tout de suite à l'écran,
+   puis envoyée au serveur par lots ; le serveur l'enregistre dans Google Drive et renvoie les
+   données à jour. Un seul message est en route à la fois (le suivant part après accusé de réception). */
+const ST = {queue:[], inflight:[], out:[], cur:null, curT:0, rev:null, ready:false, timer:null, ocr:{}, lastErr:null};
+const stSend = v => parent.postMessage({isStreamlitMessage:true, type:"streamlit:setComponentValue", value:v, dataType:"json"}, "*");
+function applyOp(o){ if(o.settings) S.settings={...S.settings,...o.settings}; else if(o.del) delete S[o.c][o.id]; else S[o.c][o.id]={...o.data,id:o.id}; }
+const stBackend = {
+  async put(c,id,data){ stQueue({c,id,data:{...data,id}}); },
+  async del(c,id){ stQueue({c,id,del:true}); },
+  async setSettings(d){ stQueue({settings:d}); }
+};
+function stQueue(o){ applyOp(o); _minD=null; ST.queue.push(o); render(); stStatus(); clearTimeout(ST.timer); ST.timer=setTimeout(stFlush,250); }
+function stFlush(){ if(!ST.queue.length) return; if(ST.inflight.length){ clearTimeout(ST.timer); ST.timer=setTimeout(stFlush,300); return; }
+  ST.inflight=ST.queue; ST.queue=[]; stPost({kind:"ops", id:uid("OP"), ops:ST.inflight}); }
+function stPost(m){ ST.out.push(m); stPump(); }
+function stPump(){ if(ST.cur||!ST.out.length||!ST.ready) return; ST.cur=ST.out.shift(); ST.curT=Date.now(); stSend(ST.cur); stStatus(); }
+function stStatus(){ const m=$("#mode"); if(!m) return; const busy=ST.queue.length||ST.inflight.length;
+  m.innerHTML = `● Google Drive<br><span style='opacity:.75'>${busy?"enregistrement…":"enregistré ✓"}</span>`; }
+function stOnRender(a){
+  if(!ST.ready){ ST.ready=true; }
+  if(a.error && a.error.id!==ST.lastErr){ ST.lastErr=a.error.id; toast(a.error.msg,true); }
+  if(ST.cur && a.ack===ST.cur.id){ if(ST.cur.kind==="ops") ST.inflight=[]; ST.cur=null; }
+  if(a.ocr && ST.ocr[a.ocr.id]){ const p=ST.ocr[a.ocr.id]; delete ST.ocr[a.ocr.id]; a.ocr.error ? p.reject(a.ocr.error) : p.resolve(a.ocr.result); }
+  if(a.data && a.rev!==ST.rev){ ST.rev=a.rev; const d=a.data;
+    for(const c of COLLS) S[c]=d[c]||{}; S.settings={alertMonths:2,...(d.settings||{})};
+    [...ST.inflight,...ST.queue].forEach(applyOp); _minD=null;
+    if(!backend){ backend=stBackend; loaded=true; $("#banner").innerHTML=""; }
+    render(); }
+  stStatus(); stPump();
+}
+window.addEventListener("message", e=>{ const d=e.data; if(d && d.type==="streamlit:render") stOnRender(d.args||{}); });
+/* Message sans réponse (connexion coupée…) : on le renvoie ; le serveur ignore les doublons. */
+setInterval(()=>{ if(ST.cur && Date.now()-ST.curT>150000){ ST.curT=Date.now(); stSend(ST.cur); } }, 10000);
+/* Toutes les minutes, on récupère les changements faits sur un autre appareil. */
+setInterval(()=>{ if(!ST.cur && !ST.out.length && !ST.queue.length && !ST.inflight.length && document.visibilityState==="visible" && !document.querySelector(".ov")) stPost({kind:"sync", id:uid("SY")}); }, 60000);
+/* Lecture de documents par Claude, faite par le serveur (clé API dans les secrets). */
+function toJpegB64(blob){ return new Promise((ok,ko)=>{ const url=URL.createObjectURL(blob), im=new Image();
+  im.onload=()=>{ const k=Math.min(1,2000/Math.max(im.width,im.height)), c=document.createElement("canvas"); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+    const x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(url);
+    ok({media_type:"image/jpeg", data:c.toDataURL("image/jpeg",0.88).split(",")[1]}); };
+  im.onerror=()=>{ URL.revokeObjectURL(url); ko(new Error("image")); }; im.src=url; }); }
+const stSample = {
+  limits: async()=>({images:{maxCount:10}}),
+  json: (prompt,{images,signal}={}) => new Promise(async(res,rej)=>{
+    let imgs; try{ imgs=await Promise.all(images.map(toJpegB64)); }catch(e){ return rej({code:"image_rejected"}); }
+    const id=uid("OCR"); ST.ocr[id]={resolve:res,reject:rej};
+    if(signal) signal.addEventListener("abort",()=>{ if(ST.ocr[id]){ delete ST.ocr[id]; rej({code:"cancelled"}); } });
+    stPost({kind:"ocr", id, prompt, images:imgs}); })
+};
+
+async function init(){
+  render();
+  $("#mode").innerHTML = "● Google Drive<br><span style='opacity:.7'>connexion…</span>";
+  parent.postMessage({isStreamlitMessage:true, type:"streamlit:componentReady", apiVersion:1}, "*");
+  parent.postMessage({isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:800}, "*");
+  return;
+}
+async function initClaudeDb(){
+  let db = null;
+  try { db = await (window.claude && claude.use ? claude.use("db") : null); } catch(e){ db=null; }
+  if (!db){ await initFileMode(); return; }
+  dbRef = db;
+  try { const u = await claude.use("user"); if (u && u.can){ const w = await u.can("data.write"); if (w===false) canWrite=false; } } catch(e){}
+  backend = makeDbBackend(db);
+  $("#mode").innerHTML = "● Base partagée<br><span style='opacity:.7'>synchronisée en direct</span>";
+  let pending = new Set([...COLLS,"settings"]);
+  const timer = setTimeout(()=>{ if(pending.size){ $("#banner").innerHTML=`<div class="banner">Les données ne sont pas encore joignables. Elles s'afficheront dès que la connexion répond.</div>`; } },10000);
+  const done = k => { if (pending.delete(k) && !pending.size){ clearTimeout(timer); $("#banner").innerHTML=""; loaded=true; migrateLegacy(); } };
+  const err = e => { clearTimeout(timer); loaded=true; if(e && e.code!=="revoked") $("#banner").innerHTML=`<div class="banner">Connexion à la base interrompue. Rechargez la page plus tard.</div>`; render(); };
+  for (const c of COLLS){
+    const q = c==="movements" ? db.collection(c).orderBy("ts","desc").limit(1000) : db.collection(c);
+    q.onSnapshot(snap=>{ const o={}; snap.docs.forEach(d=>{ o[d.id]=d.data(); }); S[c]=o; if(!snap.metadata.fromCache) done(c); render(); }, err);
+  }
+  db.doc("config/settings").onSnapshot(d=>{ if(d.exists) S.settings={...S.settings,...d.data()}; if(!d.metadata.fromCache) done("settings"); render(); }, err);
+}
+
+/* Conversion unique de l'ancien format (une fiche par palette) en lignes de quantité. */
+async function migrateLegacy(){
+  if (migrating || !canWrite || !dbRef) return;
+  const old = Object.values(S.pallets); if (!old.length) return;
+  migrating = true;
+  try{
+    const lease = await dbRef.doc("config/migration").acquire({holder:uid("H"), ttlMs:120000});
+    if (!lease.acquired) return;
+    const agg = {};
+    for (const p of old){ if(!p.loc||!p.product) continue; const id=lineId(p.loc,p.product,p.dlc); (agg[id] ||= {loc:p.loc,product:p.product,dlc:dlcM(p.dlc),qty:0}).qty++; }
+    for (const [id,x] of Object.entries(agg)) await backend.put("stock",id,{...x,qty:qty(S.stock[id])+x.qty});
+    for (const p of old) await backend.del("pallets",p.id);
+    toast("Stock converti en quantités par produit et DLC.");
+  }catch(e){}
+}
+
+async function addQty(loc, product, dlc, delta){ _minD=null;
+  const id=lineId(loc,product,dlc), nq=qty(S.stock[id])+delta;
+  if (nq<=0) await backend.del("stock",id);
+  else await backend.put("stock",id,{loc,product,dlc:dlcM(dlc),qty:nq});
+}
+async function logMove(m){ await backend.put("movements",uid("MV"),{...m,ts:Date.now(),op:opName||""}); }
+
+/* ============ ROUTAGE ============ */
+const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements"};
+function route(){ const h=location.hash.slice(1); ui.view = TITLES[h] ? h : "accueil"; render(); }
+window.addEventListener("hashchange", route);
+
+let renderQueued=false;
+function render(){ _minD=null; if(renderQueued) return; renderQueued=true; requestAnimationFrame(()=>{ renderQueued=false; doRender(); }); }
+function doRender(){
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===ui.view));
+  $("#title").textContent = TITLES[ui.view];
+  const active = document.activeElement; const keepId = active && active.id && $("#view").contains(active) ? active.id : null; const selStart = keepId && active.selectionStart;
+  if (!loaded && !backend){ $("#view").innerHTML = `<div class="empty">Chargement…</div>`; return; }
+  if (backend===fileBackend && !FS.name){ $("#view").innerHTML = vFileStart(); return; }
+  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams})[ui.view]();
+  fitHeights();
+  if (keepId){ const el=document.getElementById(keepId); if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selStart);}catch(e){} } }
+}
+const ro = () => canWrite ? "" : "disabled";
+/* Les tableaux marqués "fill-h" s'étirent jusqu'au bas de la fenêtre */
+function fitHeights(){ document.querySelectorAll(".fill-h").forEach(el=>{ const top=el.getBoundingClientRect().top+window.scrollY; el.style.maxHeight=Math.max(260, window.innerHeight-top-40-24)+"px"; }); }
+window.addEventListener("resize", ()=>fitHeights());
+
+/* ============ TABLEAU DE BORD ============ */
+function vDash(){
+  const ls = lines(), locs = Object.values(S.locations);
+  if (!Object.keys(S.products).length && !locs.length) return onboarding();
+  const bl = byLoc(); const tc = totalCap(); const nPl = locs.reduce((s,l)=>s+Math.min(cap(l),used(bl,l.id)),0);
+  const nEmpty = locs.filter(l=>!used(bl,l.id)).length;
+  const bad = ls.filter(x=>status(x)==="bad"), soon = ls.filter(x=>status(x)==="soon");
+  const pct = tc ? Math.round(nPl*100/tc) : 0;
+  const byProd = {};
+  for (const x of ls){ const b=(byProd[x.product] ||= {n:0,minD:"",bad:0,soon:0}); b.n+=qty(x); if(dlcM(x.dlc) && (!b.minD || dlcM(x.dlc)<b.minD)) b.minD=dlcM(x.dlc); const s=status(x); if(s==="bad") b.bad+=qty(x); if(s==="soon") b.soon+=qty(x); }
+  const t0 = today().getTime(); const mvToday = Object.values(S.movements).filter(m=>m.ts>=t0);
+  const qIn = mvToday.filter(m=>m.type==="ENTREE").reduce((s,m)=>s+mq(m),0), qOut = mvToday.filter(m=>m.type==="SORTIE"||m.type==="REBUT").reduce((s,m)=>s+mq(m),0);
+  const alerts = [...bad,...soon].sort(fefo).slice(0,15);
+  return `
+  <div class="kpis">
+    <div class="kpi"><div class="l">Palettes en stock</div><div class="v">${sumQ(ls)}</div><div class="s">${Object.keys(byProd).length} produit(s) présents</div></div>
+    <div class="kpi"><div class="l">Taux d'occupation</div><div class="v">${pct} %</div><div class="s">${nPl} / ${tc} places palettes</div><div class="bar"><i style="width:${pct}%"></i></div></div>
+    <div class="kpi"><div class="l">Places libres</div><div class="v">${tc-nPl}</div><div class="s">${nEmpty} emplacement(s) totalement vide(s) sur ${locs.length}</div></div>
+    <div class="kpi soon"><div class="l">Péremption ≤ ${alertM()} mois</div><div class="v">${sumQ(soon)}</div><div class="s">palettes à écouler en priorité</div></div>
+    <div class="kpi bad"><div class="l">Palettes périmées</div><div class="v">${sumQ(bad)}</div><div class="s">bloquées à la sortie</div></div>
+    <div class="kpi"><div class="l">Mouvements aujourd'hui</div><div class="v">${mvToday.length}</div><div class="s">${qIn} palette(s) entrée(s) · ${qOut} sortie(s)</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h2><span class="x">Stock par produit</span></h2>
+      ${Object.keys(byProd).length ? `<table><tr><th>Produit</th><th class="num">Palettes</th><th>DLC la + proche</th><th>Alertes</th></tr>
+      ${Object.entries(byProd).sort().map(([c,b])=>`<tr class="click" onclick="goStock('${esc(c)}')"><td class="mono">${esc(c)}</td><td class="num"><b>${b.n}</b></td><td>${DL(c,b.minD)}</td><td>${b.bad?`<span class="tag t-bad">${b.bad} périmée(s)</span> `:""}${b.soon?`<span class="tag t-soon">${b.soon} proche(s)</span>`:""}${!b.bad&&!b.soon?`<span class="tag t-ok">OK</span>`:""}</td></tr>`).join("")}</table>` : `<div class="empty">Aucune palette en stock. <a href="#reception">Enregistrer une réception</a></div>`}
+    </div>
+    <div class="card"><h2><span class="x">Alertes péremption</span><a href="#stock" onclick="ui.stockFilter.st='alert'" class="muted" style="font-size:12.5px">tout voir</a></h2>
+      ${alerts.length ? `<table><tr><th>Emplacement</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Reste</th></tr>
+      ${alerts.map(x=>`<tr class="click" onclick="lineDetail('${esc(x.id)}')"><td class="mono">${esc(L(x.loc))}</td><td class="mono">${esc(x.product)}</td><td class="num"><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td>${stTag(x)}</td></tr>`).join("")}</table>` : `<div class="empty">Aucune palette proche de sa date de péremption.</div>`}
+    </div>
+  </div>`;
+}
+function onboarding(){
+  return `<div class="card" style="max-width:640px">
+    <h2>Bienvenue — le dépôt est vide</h2>
+    <p class="muted">Pour démarrer :</p>
+    <ol class="steps">
+      <li>Créez vos <b>produits</b> (code produit).</li>
+      <li>Générez vos <b>emplacements</b> (dépôts et positions au sol).</li>
+      <li>Enregistrez une <b>réception</b> : un nombre de palettes d'un produit et d'une DLC, réparti sur des emplacements.</li>
+    </ol>
+    <div class="row" style="margin-top:16px">
+      <button class="pri" onclick="location.hash='parametres'" ${ro()}>Configurer le dépôt</button>
+      <button onclick="loadDemo()" ${ro()}>Charger des données de démonstration</button>
+    </div></div>`;
+}
+function goStock(c){ ui.stockFilter={p:c,st:"",q:""}; location.hash="stock"; }
+
+/* ============ PLAN ============ */
+function vPlan(){
+  const locs = Object.values(S.locations).sort(locSort);
+  if (!locs.length) return `<div class="card empty">Aucun emplacement. <a href="#parametres">Créer des emplacements</a></div>`;
+  const bl = byLoc(); const aisles = {};
+  for (const l of locs) (aisles[l.aisle] ||= []).push(l);
+  return `<div class="card"><div class="legend"><span><i style="background:var(--free)"></i>Vide</span><span class="muted">La couleur suit la DLC la plus urgente · <b>n/c</b> = palettes / capacité</span><span><i style="background:var(--okbg)"></i>DLC OK</span><span><i style="background:var(--soonbg)"></i>DLC ≤ ${alertM()} mois</span><span><i style="background:var(--badbg)"></i>Périmé</span><span><b class="dlc-g">MM/AA</b> DLC la plus proche du produit</span><span><b class="dlc-r">MM/AA</b> autres DLC</span><span class="muted">Cliquez sur une case pour voir le détail.</span></div></div>
+  <div class="depots">${Object.entries(aisles).map(([a,ls])=>{
+    const capA = ls.reduce((s,l)=>s+cap(l),0), usedA = ls.reduce((s,l)=>s+used(bl,l.id),0);
+    return `<div class="card aisle"><h3>Dépôt ${esc(a)} <span class="muted" style="font-weight:400">· ${usedA}/${capA} places palettes occupées</span></h3>
+    <div class="rack" style="grid-template-columns:1fr">
+      ${ls.map(l=>{ const xs=(bl[l.id]||[]).slice().sort((u,v)=>u.product.localeCompare(v.product)||dkey(u.dlc).localeCompare(dkey(v.dlc)));
+        const cls = xs.length ? worst(xs) : ""; const hl = ui.hl===l.id ? " hl":"";
+        const n=sumQ(xs), c=cap(l);
+        return `<div class="cell ${cls}${hl}" onclick="locDetail('${esc(l.id)}')" title="${esc(L(l.id))} — ${n}/${c} palette(s)">
+          <span class="id" style="display:flex;justify-content:space-between;align-items:baseline"><span class="lc">${esc(L(l.id))}</span><b style="color:${n>=c?"var(--ink)":"var(--muted)"}">${n}/${c}</b></span>
+          ${n?`<span class="plist">${xs.map(x=>`<span class="pl"><span class="mono pc">${esc(x.product)}</span><b>${qty(x)}</b><span class="pd ${dlcCls(x.product,x.dlc)}">${fmtD(x.dlc)}</span></span>`).join("")}</span>`:`<span class="muted">vide</span>`}
+          <span class="fill"><i style="width:${Math.min(100,n*100/c)}%"></i></span></div>`; }).join("")}
+    </div></div>`; }).join("")}</div>`;
+}
+
+/* ============ STOCK ============ */
+function vStock(){
+  const f = ui.stockFilter; const q=f.q.toLowerCase();
+  let ls = lines().sort(stockCmp);
+  if (f.p) ls = ls.filter(x=>x.product===f.p);
+  if (f.st==="alert") ls = ls.filter(x=>status(x)!=="ok"); else if (f.st) ls = ls.filter(x=>status(x)===f.st);
+  if (q) ls = ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
+  const groups = {}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (groups[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0}); groups[k].n+=qty(x); });
+  const gl = Object.values(groups).sort((a,b)=>a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)));
+  return `<div class="card"><div class="row">
+    <div class="f"><label>Produit</label><select onchange="ui.stockFilter.p=this.value;render()"><option value="">Tous</option>${prodOptions(f.p)}</select></div>
+    ${f.p?`<button class="danger" onclick="purgeProduct('${esc(f.p)}')" ${ro()} title="Retirer du stock toutes les palettes de ce produit">🗑 Supprimer tout le stock de ${esc(f.p)}</button>`:""}
+    <div class="f"><label>État DLC</label><select onchange="ui.stockFilter.st=this.value;render()">${[["","Tous"],["ok","OK"],["alert","Alertes (proches + périmées)"],["soon","Proches"],["bad","Périmées"]].map(([v,t])=>`<option value="${v}" ${f.st===v?"selected":""}>${t}</option>`).join("")}</select></div>
+    <div class="f" style="flex:1"><label>Filtre</label><input id="sq" value="${esc(f.q)}" placeholder="Emplacement, produit, DLC…" oninput="ui.stockFilter.q=this.value;render()"></div>
+    <button onclick="copyCsv('stock')">Copier en CSV</button>
+    <button class="pri" onclick="exportExcel()">⤓ Télécharger Excel</button>
+    <button onclick="$('#impfile').click()" ${ro()}>⤒ Importer Excel</button>
+    <input type="file" id="impfile" accept=".xlsx,.csv,.txt" style="display:none" onchange="importFile(this)">
+    <button class="yellow needs-claude" onclick="claudeThen('#ocrfile',&quot;L'import d'un relevé manuscrit&quot;)" ${ro()} title="Relevé écrit à la main, en PDF ou en photo">📄 Importer PDF manuscrit</button>
+    <input type="file" id="ocrfile" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="importScan(this)">
+  </div></div>
+  <div class="grid2">
+  <div class="card"><h2><span class="x">Stock par emplacement <span class="muted" style="font-weight:400">(${ls.length} lignes)</span></span><select onchange="ui.stockSort={k:this.value,dir:1};render()" style="font-size:12.5px;padding:4px 8px">${[["product","Trier : produit, dépôt, DLC"],["dlc","Trier : DLC, produit, emplacement"],["loc","Trier : emplacement, produit, DLC"]].map(([v,t])=>`<option value="${v}" ${ui.stockSort.k===v?"selected":""}>${t}</option>`).join("")}${ui.stockSort.k==="qty"?`<option value="qty" selected>Trier : palettes</option>`:""}</select></h2>
+    ${ls.length?`<div class="scroll fill-h"><table class="compact"><tr>${sortTh("product","Produit")}${sortTh("qty","Palettes","num")}${sortTh("dlc","DLC")}${sortTh("loc","Emplacement")}<th>Reste</th></tr>${ls.map((x,i)=>`<tr class="click deprow${ui.stockSort.k==="product"&&i&&ls[i-1].product!==x.product?" prod-sep":""}" style="${depotBg(x.loc)?`background:${depotBg(x.loc)}`:""}" onclick="lineDetail('${esc(x.id)}')"><td class="mono" style="white-space:nowrap">${esc(x.product)}</td><td class="num"><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td class="mono">${esc(L(x.loc))}</td><td>${stTag(x)}</td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun stock.</div>`}
+  </div>
+  <div class="card"><h2>Total par produit et DLC <span class="muted" style="font-weight:400">(${sumQ(ls)} palettes)</span></h2><p class="muted" style="margin:-6px 0 10px;font-size:12.5px">Cliquez sur un produit pour sortir des palettes, ou sur « + Ajouter » pour en ajouter.</p>
+    ${gl.length?`<div class="scroll fill-h"><table class="compact"><tr><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Reste</th><th></th></tr>${gl.map((g,i)=>`<tr class="click${i&&gl[i-1].product!==g.product?" prod-sep":""}" title="Cliquer pour sortir des palettes" onclick="outProd('${esc(g.product)}','${g.dlc}')"><td class="mono" style="white-space:nowrap">${esc(g.product)}</td><td class="num"><b>${g.n}</b></td><td>${DL(g.product,g.dlc)}</td><td>${stTag(g)}</td><td style="white-space:nowrap;text-align:right"><button class="sm danger" onclick="event.stopPropagation();outProd('${esc(g.product)}','${g.dlc}')" ${ro()}>− Sortir</button> <button class="sm" onclick="event.stopPropagation();addProd('${esc(g.product)}','${g.dlc}')" ${ro()}>+ Ajouter</button></td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun résultat.</div>`}
+  </div></div>`;
+}
+/* Tri du stock par emplacement : par défaut produit → dépôt → DLC → emplacement */
+function stockCmp(a,b){ const {k,dir}=ui.stockSort;
+  const P=(a.product||"").localeCompare(b.product||""), D=dkey(a.dlc).localeCompare(dkey(b.dlc)), E=locSort(locOf(a.loc),locOf(b.loc)), Q=qty(a)-qty(b);
+  const A=(locOf(a.loc).aisle||"").localeCompare(locOf(b.loc).aisle||"",undefined,{numeric:true});
+  if (k==="product") return dir*P || A || D || E;   // produit, puis groupé par dépôt, puis DLC, puis emplacement
+  const first = k==="dlc"?D : k==="loc"?E : Q;
+  return dir*first || P || A || D || E; }
+function sortTh(k,label,cls=""){ const s=ui.stockSort, on=s.k===k; return `<th class="${cls}" style="cursor:pointer;user-select:none;${on?"color:var(--accent)":""}" onclick="ui.stockSort={k:'${k}',dir:${on?-s.dir:1}};render()" title="Trier">${label}${on?(s.dir>0?" ▲":" ▼"):""}</th>`; }
+const prodOptions = sel => Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>`<option value="${esc(p.code)}" ${sel===p.code?"selected":""}>${esc(p.code)}</option>`).join("");
+
+/* ============ RÉCEPTION ============ */
+/* Emplacements ayant de la place. Priorité : ceux contenant déjà le produit, puis le dépôt préféré, puis l'ordre dépôt/position. */
+function freeLocs(prefAisle, product, exclude=[]){
+  const bl = byLoc(); const ex=new Set(exclude);
+  const has = l => product && (bl[l.id]||[]).some(x=>x.product===product) ? 0 : 1;
+  return Object.values(S.locations).filter(l=>!ex.has(l.id) && cap(l)-used(bl,l.id)>0)
+    .map(l=>({...l, free:cap(l)-used(bl,l.id)}))
+    .sort((a,b)=>{
+      const h=has(a)-has(b); if(h) return h;
+      if (prefAisle){ const pa=a.aisle===prefAisle?0:1, pb=b.aisle===prefAisle?0:1; if(pa!==pb) return pa-pb; }
+      return locSort(a,b); });
+}
+const freeTotal = () => freeLocs().reduce((s,l)=>s+l.free,0);
+function vRecep(){
+  const r = ui.recep ||= {product:"",dlc:"",dlcMo:"",dlcY:"",n:1,aisle:"",ref:"",plan:null};
+  if (!Object.keys(S.products).length) return `<div class="card empty">Créez d'abord au moins un produit. <a href="#parametres">Produits & emplacements</a></div>`;
+  const aisles=[...new Set(Object.values(S.locations).map(l=>l.aisle))].sort();
+  const nFree = freeTotal();
+  return `<div class="grid2"><div class="card"><h2>1. Saisie de la réception</h2>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:12px">
+      <div class="f"><label>Produit *</label><select id="r_p" onchange="ui.recep.product=this.value;ui.recep.plan=null;render()"><option value="">— choisir —</option>${prodOptions(r.product)}</select></div>
+      <div class="f"><label>Date de péremption (mois / année) *</label><div class="row" style="gap:6px;flex-wrap:nowrap">
+        <select id="r_dm" onchange="setDlc()"><option value="">Mois</option>${MOIS.map((n,i)=>{const v=String(i+1).padStart(2,"0");return `<option value="${v}" ${(r.dlcMo||"")===v?"selected":""}>${v} – ${n}</option>`}).join("")}</select>
+        <select id="r_dy" onchange="setDlc()"><option value="">Année</option>${yearOpts(r.dlcY||"")}</select></div></div>
+      <div class="row"><div class="f" style="flex:1"><label>Nombre de palettes *</label><input id="r_n" type="number" min="1" max="${nFree}" value="${r.n}" oninput="ui.recep.n=Math.max(1,parseInt(this.value)||1)" onchange="ui.recep.n=Math.max(1,parseInt(this.value)||1);if(ui.recep.plan){planRecep(true)}"></div>
+      <div class="f" style="flex:1"><label>Dépôt préféré</label><select onchange="ui.recep.aisle=this.value;ui.recep.plan=null;render()"><option value="">Indifférent</option>${aisles.map(a=>`<option ${r.aisle===a?"selected":""}>${esc(a)}</option>`).join("")}</select></div></div>
+      <div class="f"><label>Référence (bon de livraison, fournisseur…)</label><input id="r_r" value="${esc(r.ref)}" oninput="ui.recep.ref=this.value"></div>
+      ${opField()}
+      <div class="muted">${nFree} place(s) palette libre(s) dans le dépôt. Les emplacements contenant déjà ce produit sont proposés en premier.</div>
+      <div><button class="pri" onclick="planRecep()" ${ro()}>Proposer les emplacements →</button></div>
+    </div></div>
+    <div class="card"><h2>2. Placement & validation</h2>${r.plan ? (()=>{ const bl=byLoc(); const tot=r.plan.reduce((s,x)=>s+x.n,0);
+      return `<p class="muted" style="margin-top:0"><b>${tot} / ${r.n}</b> palette(s) placée(s) · <b>${esc(r.product)}</b> · DLC ${fmtD(r.dlc)}. Vous pouvez changer les emplacements et les quantités.</p>
+      <div class="scroll"><table><tr><th>Emplacement</th><th>Contenu actuel</th><th class="num">Palettes à poser</th><th></th></tr>${r.plan.map((x,i)=>{ const l=S.locations[x.loc]; const others=r.plan.filter((_,j)=>j!==i).map(y=>y.loc);
+        const opts=[l?{...l,free:cap(l)-used(bl,l.id)}:null,...freeLocs(r.aisle,r.product,[x.loc,...others])].filter(Boolean);
+        const content=(bl[x.loc]||[]); const n0=sumQ(content);
+        return `<tr><td><select onchange="movePlanLoc(${i},this.value)">${opts.map(o=>`<option value="${esc(o.id)}" ${o.id===x.loc?"selected":""}>${esc(L(o.id))} (${o.free} libre${o.free>1?"s":""})</option>`).join("")}</select></td>
+        <td class="muted" style="font-size:12.5px">${n0?`${n0}/${cap(l)} · ${content.map(c=>`${esc(c.product)} ${qty(c)}`).join(", ")}`:`vide (${cap(l)} places)`}</td>
+        <td class="num"><input type="number" min="1" max="${l?cap(l)-used(bl,l.id):1}" value="${x.n}" style="width:70px" onchange="ui.recep.plan[${i}].n=Math.max(1,parseInt(this.value)||1);render()"></td>
+        <td><button class="sm" onclick="ui.recep.plan.splice(${i},1);render()" title="Retirer">✕</button></td></tr>`; }).join("")}</table></div>
+      ${tot!==r.n?`<div class="banner" style="margin:10px 0 0">${tot<r.n?`Il reste <b>${r.n-tot}</b> palette(s) à placer.`:`<b>${tot-r.n}</b> palette(s) de trop par rapport aux ${r.n} reçues.`}</div>`:""}
+      <div class="row" style="margin-top:10px"><button class="sm" onclick="addPlanLoc()" ${tot>=r.n?"disabled":""}>+ Ajouter un emplacement</button></div>
+      <div class="row" style="margin-top:14px"><button class="pri" onclick="doRecep()" ${ro()} ${tot===r.n?"":"disabled"}>Valider l'entrée de ${r.n} palette(s)</button><button onclick="ui.recep.plan=null;render()">Annuler</button></div>`; })()
+      : `<div class="empty">Remplissez le formulaire puis cliquez sur « Proposer les emplacements ».</div>`}
+    </div></div>`;
+}
+const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+function yearOpts(sel){ const y=new Date().getFullYear(); let o=""; for(let k=y-1;k<=y+5;k++) o+=`<option value="${k}" ${String(k)===sel?"selected":""}>${String(k).slice(2)}</option>`; return o; }
+function setDlc(){ const r=ui.recep; r.dlcMo=$("#r_dm").value; r.dlcY=$("#r_dy").value; r.dlc=(r.dlcMo&&r.dlcY)?`${r.dlcY}-${r.dlcMo}`:""; r._forceExp=false; r.plan=null; render(); }
+function opField(){ return `<div class="f"><label>Opérateur</label><input id="op" value="${esc(opName)}" placeholder="Votre nom" oninput="opName=this.value;try{localStorage.setItem('depot_op',opName)}catch(e){}"></div>`; }
+function planRecep(auto){
+  const r=ui.recep;
+  if(!r.product) return toast("Choisissez un produit.",true);
+  if(!/^\d{4}-\d{2}$/.test(r.dlc)) return toast("Indiquez le mois et l'année de péremption.",true);
+  if(monthsLeft(r.dlc)<0 && !r._forceExp){ return modal("DLC dépassée",`<p>Le mois ${fmtD(r.dlc)} est déjà passé. Enregistrer quand même ces palettes ?</p>`,[["Annuler"],["Continuer","pri",()=>{r._forceExp=true;planRecep();}]]); }
+  const fl=freeLocs(r.aisle,r.product); const tot=fl.reduce((s,l)=>s+l.free,0);
+  if(tot<r.n) return toast(`Pas assez de place : ${tot} place(s) libre(s) pour ${r.n} palette(s).`,true);
+  let rest=r.n; r.plan=[];
+  for(const l of fl){ if(!rest) break; const k=Math.min(rest,l.free); r.plan.push({loc:l.id,n:k}); rest-=k; }
+  render();
+}
+function addPlanLoc(){ const r=ui.recep; const fl=freeLocs(r.aisle,r.product,r.plan.map(x=>x.loc)); if(!fl.length) return toast("Plus aucun emplacement avec de la place.",true); const rest=r.n-r.plan.reduce((s,x)=>s+x.n,0); if(rest<=0) return; r.plan.push({loc:fl[0].id,n:Math.min(rest,fl[0].free)}); render(); }
+function movePlanLoc(i,loc){ const r=ui.recep, l=S.locations[loc]; const free=cap(l)-used(byLoc(),loc); r.plan[i].loc=loc; r.plan[i].n=Math.max(1,Math.min(r.plan[i].n,free)); render(); }
+async function doRecep(){
+  const r=ui.recep; const bl=byLoc();
+  if(new Set(r.plan.map(x=>x.loc)).size!==r.plan.length) return toast("Un emplacement apparaît deux fois : regroupez les quantités.",true);
+  for(const x of r.plan){ const l=S.locations[x.loc]; if(!l) return toast(`Emplacement ${L(x.loc)} introuvable.`,true);
+    const free=cap(l)-used(bl,x.loc); if(x.n>free) return toast(`${L(x.loc)} : seulement ${free} place(s) libre(s).`,true); }
+  const totP=r.plan.reduce((s,x)=>s+x.n,0); if(totP!==r.n) return toast(`Le placement (${totP}) ne correspond pas aux ${r.n} palettes reçues.`,true);
+  const ref=r.ref.trim();
+  try{
+    for(const x of r.plan){ await addQty(x.loc, r.product, r.dlc, x.n); await logMove({type:"ENTREE",product:r.product,dlc:r.dlc,qty:x.n,from:"",to:x.loc,ref}); }
+    toast(`${totP} palette(s) entrée(s) en stock.`); ui.recep={product:r.product,dlc:"",dlcMo:"",dlcY:"",n:1,aisle:r.aisle,ref:"",plan:null}; render();
+  }catch(e){}
+}
+
+/* ============ SORTIE FEFO ============ */
+function sortieCands(){ const s=ui.sortie; return s.product ? lines().filter(x=>x.product===s.product && (s.allowExp || status(x)!=="bad")).sort(fefo) : []; }
+function sortieTake(){ const s=ui.sortie; const c=sortieCands();
+  if (s.take){ const t={}; c.forEach(x=>{ if(s.take[x.id]) t[x.id]=Math.min(s.take[x.id],qty(x)); }); return t; }
+  const t={}; let rest=s.n; for(const x of c){ if(rest<=0) break; const k=Math.min(rest,qty(x)); t[x.id]=k; rest-=k; } return t; }
+function vSortie(){
+  const s = ui.sortie ||= {product:"",n:1,ref:"",take:null,allowExp:false};
+  const all = s.product ? lines().filter(x=>x.product===s.product) : [];
+  const cands = sortieCands(); const avail=sumQ(cands); const nExp = sumQ(all)-avail;
+  const take = sortieTake(); const tot = Object.values(take).reduce((a,b)=>a+b,0);
+  return `<div class="grid2"><div class="card"><h2>1. Commande</h2>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:12px">
+    <div class="f"><label>Produit *</label><select onchange="ui.sortie.product=this.value;ui.sortie.take=null;render()"><option value="">— choisir —</option>${prodOptions(s.product)}</select></div>
+    <div class="row"><div class="f" style="flex:1"><label>Nombre de palettes *</label><input id="s_n" type="number" min="1" value="${s.n}" oninput="ui.sortie.n=Math.max(1,parseInt(this.value)||1);ui.sortie.take=null;render()"></div>
+    <div class="f" style="flex:1"><label>Référence (n° commande, client…)</label><input id="s_r" value="${esc(s.ref)}" oninput="ui.sortie.ref=this.value"></div></div>
+    ${opField()}
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" ${s.allowExp?"checked":""} onchange="ui.sortie.allowExp=this.checked;ui.sortie.take=null;render()"> Autoriser la sortie de palettes périmées (destruction, retour…)</label>
+    ${s.product?`<div class="muted">${avail} palette(s) disponible(s)${nExp&&!s.allowExp?` · ${nExp} périmée(s) bloquée(s)`:""}.</div>`:""}
+    ${s.product && avail<s.n?`<div class="banner" style="margin:0">Stock insuffisant : ${avail} disponible(s) pour ${s.n} demandée(s).</div>`:""}
+    </div></div>
+    <div class="card"><h2>2. Prélèvement <span class="muted" style="font-weight:400">— règle FEFO : 1<sup>re</sup> périmée, 1<sup>re</sup> sortie</span></h2>
+    ${!s.product?`<div class="empty">Choisissez un produit.</div>`: !cands.length?`<div class="empty">Aucune palette disponible.</div>`:`
+      <div class="scroll"><table><tr><th>Emplacement</th><th>DLC</th><th>Reste</th><th class="num">En stock</th><th class="num">À prélever</th></tr>${cands.map(x=>`<tr><td class="mono">${esc(L(x.loc))}</td><td>${DL(x.product,x.dlc)}</td><td>${stTag(x)}</td><td class="num">${qty(x)}</td><td class="num"><input type="number" min="0" max="${qty(x)}" value="${take[x.id]||0}" style="width:70px" onchange="setTake('${esc(x.id)}',this.value)"></td></tr>`).join("")}</table></div>
+      ${tot!==s.n?`<div class="banner" style="margin:10px 0 0">Total prélevé : <b>${tot}</b> palette(s) pour ${s.n} demandée(s).</div>`:""}
+      <div class="row" style="margin-top:14px"><button class="pri" onclick="doSortie()" ${ro()} ${tot?"":"disabled"}>Valider la sortie de ${tot} palette(s)</button><button onclick="copyPick()">Copier la liste de prélèvement</button></div>`}
+    </div></div>`;
+}
+function setTake(id,v){ const s=ui.sortie; const t=sortieTake(); const x=S.stock[id]; t[id]=Math.max(0,Math.min(qty(x),parseInt(v)||0)); s.take=t; render(); }
+async function doSortie(){
+  const s=ui.sortie; const t=sortieTake(); const ids=Object.keys(t).filter(id=>t[id]>0&&S.stock[id]); if(!ids.length) return;
+  let n=0;
+  try{ for(const id of ids){ const x=S.stock[id], k=Math.min(t[id],qty(x)); if(!k) continue; await removeQty(x,k,status(x)==="bad"?"REBUT":"SORTIE",s.ref.trim()); n+=k; }
+    toast(`${n} palette(s) sortie(s) du stock.`); ui.sortie={product:s.product,n:1,ref:"",take:null,allowExp:false}; render(); }catch(e){}
+}
+async function removeQty(x,k,type,ref){ const {loc,product,dlc}=x; await addQty(loc,product,dlc,-k); await logMove({type,product,dlc:dlcM(dlc),qty:k,from:loc,to:"",ref:ref||""}); }
+function copyPick(){ const t=sortieTake(); const rows=Object.keys(t).filter(id=>t[id]>0&&S.stock[id]).map(id=>({...S.stock[id],k:t[id]})).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc)));
+  copyText(`Prélèvement ${ui.sortie.ref||""}\n`+rows.map(x=>`${L(x.loc)}\t${x.product}\t${x.k} pal.\tDLC ${fmtD(x.dlc)}`).join("\n"),"Liste copiée."); }
+
+/* ============ PRÉPARATION DE COMMANDE ============
+   Commande importée d'un PDF/photo (lue par Claude) ou saisie à la main.
+   Règle de proposition : dans les dépôts choisis, DLC la plus courte d'abord, puis à DLC égale
+   l'emplacement contenant le MOINS de palettes de ce produit, puis ordre du dépôt. */
+function cmdState(){ return ui.cmd ||= {file:"",ref:"",lines:[],doubt:[],aisles:null,allowExp:false,take:null}; }
+const allAisles = () => [...new Set(Object.values(S.locations).map(l=>l.aisle))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+function cmdAisles(){ const c=cmdState(); return c.aisles || allAisles(); }
+function cmdNeed(){ const need={}; cmdState().lines.forEach(l=>{ const k=String(l.code||"").trim().toUpperCase(), n=parseInt(l.n)||0; if(k&&n>0) need[k]=(need[k]||0)+n; }); return need; }
+/* Nombre de palettes d'un produit dans un emplacement (toutes DLC confondues) */
+function prodInLoc(bl,loc,code){ return sumQ((bl[loc]||[]).filter(y=>y.product===code)); }
+function cmdCands(code){ const c=cmdState(), ais=cmdAisles(), bl=byLoc();
+  return lines().filter(x=>x.product===code && ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad"))
+    .sort((a,b)=>dkey(a.dlc).localeCompare(dkey(b.dlc)) || prodInLoc(bl,a.loc,code)-prodInLoc(bl,b.loc,code) || locSort(locOf(a.loc),locOf(b.loc))); }
+function cmdTake(){ const c=cmdState(), need=cmdNeed(), t={};
+  if(c.take){ for(const [id,k] of Object.entries(c.take)){ const x=S.stock[id]; if(x&&k>0&&need[x.product]) t[id]=Math.min(k,qty(x)); } return t; }
+  for(const [code,n] of Object.entries(need)){ let rest=n; for(const x of cmdCands(code)){ if(rest<=0) break; const k=Math.min(rest,qty(x)); t[x.id]=k; rest-=k; } }
+  return t; }
+function vCmd(){
+  const c=cmdState(), need=cmdNeed(), take=cmdTake(), ais=cmdAisles(), bl=byLoc();
+  const prodList=`<datalist id="cmd_list">${Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>`<option value="${esc(p.code)}">`).join("")}</datalist>`;
+  const dispo=code=>sumQ(cmdCands(code));
+  const totTake=Object.values(take).reduce((a,b)=>a+b,0), totNeed=Object.values(need).reduce((a,b)=>a+b,0);
+  const linesHtml = c.lines.length ? `<div class="scroll"><table class="impt"><tr><th>Produit</th><th class="num">Palettes demandées</th><th class="num">Dispo (dépôts choisis)</th><th>Remarque</th><th></th></tr>
+    ${c.lines.map((l,i)=>{ const code=String(l.code||"").trim().toUpperCase(), n=parseInt(l.n)||0, known=!!S.products[safeId(code)], d=code?dispo(code):0;
+      const rem = !code?'<span style="color:var(--bad)">code manquant</span>' : !known?'<span style="color:var(--bad)">produit inconnu</span>' : !(n>0)?'<span style="color:var(--bad)">quantité invalide</span>' : d<need[code]?`<span style="color:#a26700">stock insuffisant${cmdElsewhere(code).length?` · présent dans le dépôt ${cmdElsewhere(code).map(e=>esc(e.aisle)).join(", ")}`:""}</span>`:'<span class="muted">OK</span>';
+      return `<tr style="${c.doubt[i]?"background:var(--soonbg)":""}"><td><input id="cmd_c${i}" class="mono" list="cmd_list" value="${esc(l.code)}" style="width:140px" onchange="cmdState().lines[${i}].code=this.value;cmdState().take=null;render()"></td>
+        <td class="num"><input id="cmd_n${i}" type="number" min="1" value="${esc(l.n)}" style="width:70px" onchange="cmdState().lines[${i}].n=this.value;cmdState().take=null;render()"></td>
+        <td class="num">${code&&known?d:"—"}</td><td style="font-size:12.5px">${rem}${c.doubt[i]?' · <i>lu avec un doute</i>':""}</td>
+        <td><button class="sm" onclick="cmdState().lines.splice(${i},1);cmdState().doubt.splice(${i},1);cmdState().take=null;render()">✕</button></td></tr>`; }).join("")}</table></div>${prodList}`
+    : `<div class="empty">Importez un bon de commande (PDF ou photo) ou ajoutez les lignes à la main.</div>`;
+  // proposition
+  const prods=Object.keys(need).sort(); let pick="";
+  if(prods.length){ pick=prods.map((code,pi)=>{ const cs=cmdCands(code); const taken=cs.reduce((a,x)=>a+(take[x.id]||0),0);
+      const head=`<tr class="${pi?"prod-sep":""}"><td colspan="6" style="background:#f6f8fa"><b class="mono">${esc(code)}</b> — ${taken} / ${need[code]} palette(s) ${taken<need[code]?`<span class="tag t-soon">manque ${need[code]-taken}</span>`:taken>need[code]?`<span class="tag t-soon">${taken-need[code]} de trop</span>`:`<span class="tag t-ok">complet</span>`}${taken<need[code]?cmdElseHtml(code,need[code]-taken):""}</td></tr>`;
+      if(!cs.length) return head+`<tr><td colspan="6" class="muted">Aucune palette disponible dans les dépôts choisis.</td></tr>`;
+      return head+cs.map(x=>`<tr style="${take[x.id]?"":"opacity:.55"}"><td class="mono"><b>${esc(L(x.loc))}</b></td><td class="num">${prodInLoc(bl,x.loc,x.product)}</td><td>${DL(x.product,x.dlc)}</td><td>${stTag(x)}</td><td class="num">${qty(x)}</td>
+        <td class="num"><input id="cmd_t_${esc(x.id)}" type="number" min="0" max="${qty(x)}" value="${take[x.id]||0}" style="width:64px" onchange="cmdSetTake('${esc(x.id)}',this.value)"></td></tr>`).join(""); }).join(""); }
+  return `<div class="grid2">
+  <div class="card"><h2><span class="x">1. Commande ${c.file?`<span class="muted" style="font-weight:400">· ${esc(c.file)}</span>`:""}</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <button class="yellow needs-claude" onclick="claudeThen('#cmdfile',&quot;L'import d'une commande PDF&quot;)" ${ro()}>📄 Importer une commande PDF</button>
+      <input type="file" id="cmdfile" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="importCmd(this)">
+      <button onclick="cmdState().lines.push({code:'',n:''});cmdState().doubt.push(false);render();setTimeout(()=>$('#cmd_c'+(cmdState().lines.length-1))?.focus(),30)">+ Ajouter une ligne</button>
+      ${c.lines.length?`<button class="danger" onclick="cmdCancel()">✕ Annuler la commande</button>`:""}
+    </div>
+    <div class="row" style="margin-bottom:12px"><div class="f" style="flex:1"><label>Référence de la commande (client, n° de bon…)</label><input id="cmd_ref" value="${esc(c.ref)}" oninput="cmdState().ref=this.value"></div>${opField()}</div>
+    ${linesHtml}
+  </div>
+  <div class="card"><h2>2. Dépôts où prendre les palettes</h2>
+    <div class="row" style="gap:14px">${allAisles().map(a=>`<label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" ${ais.includes(a)?"checked":""} onchange="cmdToggleAisle('${esc(a)}',this.checked)"> Dépôt ${esc(a)}</label>`).join("")||'<span class="muted">Aucun dépôt.</span>'}</div>
+    <div class="row" style="margin-top:10px"><button class="sm" onclick="cmdState().aisles=null;cmdState().take=null;render()">Tous</button><button class="sm" onclick="cmdState().aisles=[];cmdState().take=null;render()">Aucun</button></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" ${c.allowExp?"checked":""} onchange="cmdState().allowExp=this.checked;cmdState().take=null;render()"> Autoriser les palettes périmées</label>
+    <p class="muted" style="font-size:12.5px;margin-bottom:0">Les palettes sont proposées d'abord par <b>DLC la plus courte</b>, puis, à DLC égale, dans les emplacements qui contiennent <b>le moins de palettes de ce produit</b>.</p>
+  </div></div>
+  <div class="card"><h2><span class="x">3. Emplacements proposés ${prods.length?`<span class="muted" style="font-weight:400">· ${totTake} / ${totNeed} palette(s)</span>`:""}</span>
+    ${c.take?`<button class="sm" onclick="cmdState().take=null;render()">Recalculer la proposition</button>`:""}</h2>
+    ${prods.length?`<div class="scroll" style="max-height:520px"><table class="impt"><tr><th>Emplacement</th><th class="num">Pal. de ce produit dans l'empl.</th><th>DLC</th><th>Reste</th><th class="num">En stock (ligne)</th><th class="num">À prendre</th></tr>${pick}</table></div>
+    <div class="row" style="margin-top:14px"><button class="pri" onclick="doCmd()" ${ro()} ${totTake?"":"disabled"}>Valider la sortie de ${totTake} palette(s)</button><button onclick="cmdCopy()" ${totTake?"":"disabled"}>Copier la liste de prélèvement</button><button onclick="cmdExcel()" ${totTake?"":"disabled"}>⤓ Liste en Excel</button><span style="flex:1"></span><button class="danger" onclick="cmdCancel()">✕ Annuler la commande</button></div>`
+    :`<div class="empty">La proposition apparaîtra ici dès que la commande contient des lignes.</div>`}
+  </div>`;
+}
+/* Autres dépôts (non cochés) où le produit est disponible : [{aisle, n}] */
+function cmdElsewhere(code){ const c=cmdState(), ais=cmdAisles(), g={};
+  lines().filter(x=>x.product===code && !ais.includes(locOf(x.loc).aisle) && (c.allowExp||status(x)!=="bad")).forEach(x=>{ const a=locOf(x.loc).aisle||"?"; g[a]=(g[a]||0)+qty(x); });
+  return Object.entries(g).map(([aisle,n])=>({aisle,n})).sort((a,b)=>b.n-a.n||a.aisle.localeCompare(b.aisle)); }
+const cmdElseHtml = (code,missing) => { const el=cmdElsewhere(code); if(!el.length) return `<div class="muted" style="font-size:12.5px;margin-top:4px">Produit absent des autres dépôts.</div>`;
+  return `<div style="font-size:12.5px;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span>Disponible dans un autre dépôt :</span>${el.map(e=>`<button class="sm yellow" onclick="cmdToggleAisle('${esc(e.aisle)}',true)" title="Ajouter ce dépôt à la préparation">+ Dépôt ${esc(e.aisle)} · ${e.n} pal.${e.n>=missing?" ✓":""}</button>`).join("")}</div>`; };
+function cmdCancel(){ const c=cmdState();
+  modal("Annuler la commande",`<p>Abandonner la préparation${c.ref?` de « ${esc(c.ref)} »`:""} ? Les lignes saisies et la proposition seront effacées. <b>Le stock n'est pas modifié.</b></p>`,
+  [["Non, continuer"],["Oui, annuler la commande","danger",()=>{ ui.cmd=null; render(); toast("Commande annulée — stock inchangé."); }]]); }
+function cmdToggleAisle(a,on){ const c=cmdState(); const s=new Set(cmdAisles()); on?s.add(a):s.delete(a); c.aisles=[...s]; c.take=null; render(); }
+function cmdSetTake(id,v){ const c=cmdState(), t=cmdTake(), x=S.stock[id]; t[id]=Math.max(0,Math.min(qty(x),parseInt(v)||0)); c.take=t; render(); }
+function cmdPicks(){ const t=cmdTake(); return Object.keys(t).filter(id=>t[id]>0&&S.stock[id]).map(id=>({...S.stock[id],k:t[id]})).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc))||a.product.localeCompare(b.product)); }
+function cmdCopy(){ const c=cmdState(); copyText(`Commande ${c.ref||""}\n`+cmdPicks().map(x=>`${L(x.loc)}\t${x.product}\t${x.k} pal.\tDLC ${fmtD(x.dlc)}`).join("\n"),"Liste de prélèvement copiée."); }
+async function cmdExcel(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length) return;
+  const rows=ps.map(x=>[{v:L(x.loc),s:{b:true,bg:(depotBg(x.loc)||"").replace("#","").toUpperCase()||undefined}},{v:x.product},{v:x.k,s:{right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):""},{v:""}]);
+  const blob=buildXlsx([{name:"Prélèvement",head:["Emplacement","Produit","Palettes","DLC","Pris ✓"],widths:[13,16,10,9,9],rows}]);
+  const d=new Date(), name=`prelevement-${(c.ref||"commande").replace(/[^A-Za-z0-9_-]+/g,"_").slice(0,40)}-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
+  let dl=null; try{ dl=window.claude&&claude.use?await claude.use("downloads"):null; }catch(e){}
+  if(dl){ try{ await dl.save({filename:name,data:blob}); toast("Liste enregistrée."); }catch(e){ if(e&&e.code!=="declined") toast("Le téléchargement n'est pas disponible ici.",true); } return; }
+  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); }catch(e){ toast("Le téléchargement n'est pas disponible ici.",true); }
+}
+async function doCmd(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length) return; const ref=("Commande "+(c.ref||"")).trim();
+  const need=cmdNeed(), taken={}; ps.forEach(x=>taken[x.product]=(taken[x.product]||0)+x.k);
+  const short=Object.keys(need).filter(k=>(taken[k]||0)<need[k]);
+  modal("Valider la sortie",`<p>Sortir <b>${ps.reduce((a,x)=>a+x.k,0)}</b> palette(s) du stock pour « ${esc(ref)} » ?</p>${short.length?`<div class="banner" style="margin:0">Commande incomplète pour : ${short.map(k=>`${esc(k)} (${taken[k]||0}/${need[k]})`).join(", ")}</div>`:""}`,
+  [["Annuler"],["Valider","pri",async()=>{ let n=0; for(const x of ps){ const cur=S.stock[x.id]; if(!cur) continue; const k=Math.min(x.k,qty(cur)); if(!k) continue; await removeQty(cur,k,"SORTIE",ref); n+=k; }
+    toast(`${n} palette(s) sortie(s) du stock.`); ui.cmd=null; render(); }, !canWrite]]);
+}
+async function importCmd(input){
+  const f=input.files&&input.files[0]; input.value=""; if(!f) return;
+  const sample=await getSample(); if(!sample) return claudeNeeded("L'import d'une commande PDF");
+  const lim=await sample.limits().catch(()=>null); if(!lim||!lim.images) return claudeNeeded("L'import d'une commande PDF");
+  ocrCtl=new AbortController();
+  modal("Lecture de la commande",`<p id="ocr_msg">Préparation du fichier « ${esc(f.name)} »…</p><p class="muted" style="font-size:12.5px">La lecture peut prendre jusqu'à une ou deux minutes.</p>`,[["Arrêter","",()=>{ ocrCtl&&ocrCtl.abort(); }]]);
+  const msg=t=>{ const el=$("#ocr_msg"); if(el) el.textContent=t; }, closeWait=()=>{ const el=$("#ocr_msg"); if(el) el.closest(".ov").remove(); };
+  let images=[];
+  try{ if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){ msg("Conversion des pages du PDF…"); images=(await pdfToImages(await f.arrayBuffer(), lim.images.maxCount)).images; } else images=[f]; }
+  catch(e){ closeWait(); return toast("Impossible d'ouvrir ce PDF. Vous pouvez aussi importer une photo (JPG ou PNG).",true); }
+  const prods=Object.values(S.products).map(p=>p.code).sort();
+  const prompt=`Tu lis un bon de commande de palettes d'eau (imprimé ou écrit à la main, en français).
+Relève chaque produit commandé et le nombre de PALETTES demandé. Ignore prix, adresses, totaux généraux et mentions légales.
+Codes produits connus du dépôt (utilise le code connu qui correspond le mieux, sans en inventer ; si aucun ne correspond, recopie le code lu) : ${prods.join(", ")||"aucun"}.
+Si la quantité est exprimée autrement qu'en palettes et que tu ne peux pas la convertir, mets "doute": true.
+Réponds uniquement en JSON :
+{"reference":"n° de commande ou nom du client, ou \"\"","lignes":[{"code":"EAU-PL-150","palettes":4,"doute":false}]}`;
+  msg("Lecture de la commande par Claude…");
+  let data;
+  try{ data=await sample.json(prompt,{images,modelTier:"complex",signal:ocrCtl.signal}); }
+  catch(e){ closeWait(); if(e&&e.code==="cancelled") return;
+    const m={not_granted:"Vous n'avez pas autorisé ce logiciel à utiliser Claude.",rate_limited:"Trop de demandes pour le moment, réessayez dans quelques minutes.",image_rejected:"Le fichier n'a pas pu être envoyé (format ou taille).",invalid_json:"La réponse n'a pas pu être lue, réessayez.",refused:"Claude n'a pas pu lire ce document.",session_expired:"Reconnectez-vous à Claude puis réessayez."};
+    return toast(m[e&&e.code]||(e&&e.msg)||"La lecture a échoué, réessayez.",true); }
+  closeWait();
+  const arr=Array.isArray(data)?data:(data&&Array.isArray(data.lignes)?data.lignes:[]);
+  const ls=arr.filter(r=>r&&typeof r==="object").map(r=>({code:String(r.code??"").trim().toUpperCase(), n:String(parseInt(r.palettes)||"")}));
+  if(!ls.length) return toast("Aucune ligne de commande n'a été trouvée.",true);
+  const c=cmdState(); c.file=f.name; c.ref=(data&&data.reference)?String(data.reference):c.ref; c.lines=ls; c.doubt=arr.map(r=>!!(r&&r.doute)); c.take=null;
+  location.hash="commande"; render(); toast(`${ls.length} ligne(s) lue(s) : vérifiez-les puis choisissez les dépôts.`);
+}
+
+/* ============ MOUVEMENTS ============ */
+const MV = {ENTREE:["Entrée","t-in"],SORTIE:["Sortie","t-out"],TRANSFERT:["Transfert","t-mv"],REBUT:["Rebut","t-rb"]};
+function vMoves(){
+  const f=ui.mvFilter, q=f.q.toLowerCase();
+  let mv=Object.values(S.movements).sort((a,b)=>b.ts-a.ts);
+  if(f.t) mv=mv.filter(m=>m.type===f.t);
+  if(q) mv=mv.filter(m=>[m.product,m.from,m.to,L(m.from),L(m.to),m.ref,m.op,fmtD(m.dlc)].join(" ").toLowerCase().includes(q));
+  return `<div class="card"><div class="row">
+    <div class="f"><label>Type</label><select onchange="ui.mvFilter.t=this.value;render()"><option value="">Tous</option>${Object.entries(MV).map(([k,[t]])=>`<option value="${k}" ${f.t===k?"selected":""}>${t}</option>`).join("")}</select></div>
+    <div class="f" style="flex:1"><label>Filtre</label><input id="mq" value="${esc(f.q)}" oninput="ui.mvFilter.q=this.value;render()" placeholder="Produit, emplacement, référence, opérateur…"></div>
+    <button onclick="copyCsv('moves')">Copier en CSV</button></div></div>
+  <div class="card">${mv.length?`<div class="scroll" style="max-height:640px"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>De</th><th>Vers</th><th>Réf.</th><th>Opérateur</th></tr>
+  ${mv.slice(0,500).map(m=>`<tr><td>${fmtTs(m.ts)}</td><td><span class="tag ${(MV[m.type]||["",""])[1]}">${(MV[m.type]||[m.type])[0]}</span></td><td class="mono">${esc(m.product)}</td><td class="num"><b>${mq(m)}</b></td><td>${fmtD(m.dlc)}</td><td class="mono">${esc(L(m.from)||"—")}</td><td class="mono">${esc(L(m.to)||"—")}</td><td>${esc(m.ref||"")}</td><td>${esc(m.op||"")}</td></tr>`).join("")}</table></div>${mv.length>500?`<p class="muted">500 premiers affichés sur ${mv.length}.</p>`:""}`:`<div class="empty">Aucun mouvement.</div>`}</div>`;
+}
+
+/* ============ PARAMÈTRES ============ */
+function vParams(){
+  const prods=Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code));
+  const cnt={}; lines().forEach(x=>cnt[x.product]=(cnt[x.product]||0)+qty(x));
+  const locs=Object.values(S.locations).sort(locSort); const bl=byLoc();
+  const aisles={}; locs.forEach(l=>{ const a=(aisles[l.aisle] ||= {n:0,cap:0,used:0,caps:new Set()}); a.n++; a.cap+=cap(l); a.used+=used(bl,l.id); a.caps.add(cap(l)); });
+  return `<div class="grid2">
+  <div class="card"><h2><span class="x">Produits (${prods.length})</span><button class="pri sm" onclick="editProduct()" ${ro()}>+ Nouveau produit</button></h2>
+    ${prods.length?`<table><tr><th>Code</th><th>Désignation</th><th>Format</th><th class="num">Stock</th><th></th></tr>${prods.map(p=>`<tr><td class="mono">${esc(p.code)}</td><td>${esc(p.name)}</td><td class="muted">${esc(p.format||"")}${p.perPallet?` · ${esc(p.perPallet)} colis/pal.`:""}</td><td class="num">${cnt[p.code]||0}</td><td style="white-space:nowrap"><button class="sm" onclick="editProduct('${esc(p.id)}')" ${ro()}>Modifier</button> ${cnt[p.code]?`<button class="sm danger" onclick="purgeProduct('${esc(p.code)}')" ${ro()} title="Retirer du stock toutes les palettes de ce produit">Vider le stock</button> `:""}<button class="sm danger" onclick="delProduct('${esc(p.id)}')" ${ro()}>Suppr.</button></td></tr>`).join("")}</table>`:`<div class="empty">Aucun produit.</div>`}
+  </div>
+  <div class="card"><h2><span class="x">Emplacements (${locs.length})</span><button class="pri sm" onclick="genLocs()" ${ro()}>+ Générer des emplacements</button></h2>
+    <p class="muted" style="margin-top:0">Format : <span class="mono">Dépôt + position</span> (ex. <span class="mono">D303</span> = dépôt D, position 303). Stockage au sol uniquement. Chaque emplacement a une capacité en palettes et peut mélanger produits et DLC. La capacité d'un emplacement isolé se modifie en cliquant dessus dans le plan.</p>
+    ${Object.keys(aisles).length?`<table><tr><th>Dépôt</th><th class="num">Emplac.</th><th class="num">Capacité / empl.</th><th class="num">Palettes / places</th><th></th></tr>${Object.entries(aisles).map(([a,x])=>`<tr><td><b>${esc(a)}</b></td><td class="num">${x.n}</td><td class="num">${[...x.caps].sort((p,q)=>p-q).join(", ")}</td><td class="num">${x.used}/${x.cap}</td><td style="white-space:nowrap"><button class="sm" onclick="capAisle('${esc(a)}')" ${ro()}>Capacité</button> <button class="sm danger" onclick="delAisle('${esc(a)}')" ${ro()}>Suppr. vides</button></td></tr>`).join("")}</table>`:`<div class="empty">Aucun emplacement.</div>`}
+  </div></div>
+  <div class="card"><h2>Réglages</h2><div class="row">
+    <div class="f"><label>Seuil d'alerte péremption (mois)</label><input type="number" min="0" id="alertd" value="${alertM()}" style="width:120px"></div>
+    <button onclick="saveSettings()" ${ro()}>Enregistrer</button>
+    <span style="flex:1"></span>
+    <button class="pri" onclick="exportDataFile()" title="Classeur Excel : stock, produits, emplacements, mouvements">⤓ Exporter le fichier de données</button>
+    ${backend===fileBackend?`<button onclick="FS.name='';FS.handle=null;render();fileStatus()">Changer de fichier de données</button>`:""}
+    ${!prods.length&&!locs.length?`<button onclick="loadDemo()" ${ro()}>Données de démonstration</button>`:""}
+  </div></div>`;
+}
+function editProduct(id){
+  const p = id ? S.products[id] : {code:"",name:"",format:"",perPallet:""};
+  modal(id?"Modifier le produit":"Nouveau produit",`<div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="f"><label>Code produit *</label><input id="m_code" value="${esc(p.code)}" ${id?"disabled":""} class="mono" placeholder="ex. EAU-PL-150"></div>
+    <div class="f"><label>Désignation (facultatif)</label><input id="m_name" value="${esc(p.name)}" placeholder="ex. Eau plate 1,5 L"></div>
+    <div class="row"><div class="f" style="flex:1"><label>Format / conditionnement</label><input id="m_fmt" value="${esc(p.format||"")}" placeholder="ex. pack 6 x 1,5 L"></div>
+    <div class="f" style="width:140px"><label>Colis / palette</label><input id="m_pp" type="number" min="0" value="${esc(p.perPallet||"")}"></div></div></div>`,
+    [["Annuler"],["Enregistrer","pri",async()=>{
+      const code=(id?p.code:$("#m_code").value.trim()).toUpperCase(), name=$("#m_name").value.trim();
+      if(!code){ toast("Le code produit est obligatoire.",true); return false; }
+      const pid=safeId(code); if(!id && S.products[pid]){ toast("Ce code produit existe déjà.",true); return false; }
+      await backend.put("products",pid,{code,name,format:$("#m_fmt").value.trim(),perPallet:$("#m_pp").value?+$("#m_pp").value:""}); toast("Produit enregistré.");
+    }]]);
+  setTimeout(()=>$(id?"#m_name":"#m_code")?.focus(),30);
+}
+/* Retire du stock toutes les palettes d'un produit (tous emplacements, toutes DLC) */
+function purgeProduct(code){ const xs=lines().filter(x=>x.product===code); const n=sumQ(xs);
+  if(!n) return toast("Ce produit n'a aucune palette en stock.",true);
+  const locs=[...new Set(xs.map(x=>L(x.loc)))];
+  modal(`Supprimer tout le stock de ${esc(code)}`,`<p>Retirer <b>${n} palette(s)</b> de <b class="mono">${esc(code)}</b> réparties sur <b>${locs.length}</b> emplacement(s) :</p>
+    <p class="muted" style="font-size:12.5px;max-height:90px;overflow:auto">${locs.map(esc).join(", ")}</p>
+    <div class="row"><div class="f" style="width:200px"><label>Type de sortie</label><select id="pg_t"><option value="SORTIE">Sortie</option><option value="REBUT">Rebut / destruction</option></select></div>
+    <div class="f" style="flex:1"><label>Motif / référence</label><input id="pg_ref" placeholder="ex. inventaire, erreur de saisie…"></div></div>
+    <p style="margin-bottom:0"><b>Action définitive.</b> Le produit reste dans la liste des produits ; chaque retrait est noté dans les mouvements.</p>`,
+  [["Annuler"],[`Supprimer ${n} palette(s)`,"danger",async()=>{ const t=$("#pg_t").value, ref=$("#pg_ref").value.trim()||"Suppression du stock du produit"; let k=0;
+    for(const x of lines().filter(y=>y.product===code)){ const q=qty(x); await removeQty(x,q,t,ref); k+=q; }
+    toast(`${k} palette(s) de ${code} retirée(s) du stock.`); }, !canWrite]]); }
+function delProduct(id){ const p=S.products[id]; const n=sumQ(lines().filter(x=>x.product===p.code));
+  if(n) return toast(`Impossible : ${n} palette(s) de ce produit sont en stock.`,true);
+  modal("Supprimer le produit",`<p>Supprimer le produit <b>${esc(p.code)}</b> ?</p>`,[["Annuler"],["Supprimer","danger",async()=>{ await backend.del("products",id); toast("Produit supprimé."); }]]); }
+function genLocs(){
+  modal("Générer des emplacements",`<div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="f"><label>Dépôt(s) — séparés par des virgules</label><input id="g_a" value="A" placeholder="A, B, C"></div>
+    <div class="row"><div class="f" style="flex:1"><label>Position de</label><input id="g_p1" type="number" value="1"></div><div class="f" style="flex:1"><label>à</label><input id="g_p2" type="number" value="10"></div></div>
+    <div class="f"><label>Capacité de chaque emplacement (nombre de palettes)</label><input id="g_c" type="number" min="1" value="2"></div>
+    <p class="muted" style="margin:0">Les emplacements déjà existants sont conservés.</p></div>`,
+  [["Annuler"],["Générer","pri",async()=>{
+    const as=$("#g_a").value.split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+    const p1=+$("#g_p1").value,p2=+$("#g_p2").value,c=parseInt($("#g_c").value);
+    if(!as.length||p2<p1||!(c>=1)){ toast("Paramètres invalides.",true); return false; }
+    const total=as.length*(p2-p1+1); if(total>2000){ toast("Maximum 2000 emplacements à la fois.",true); return false; }
+    let n=0; for(const a of as) for(let p=p1;p<=p2;p++){ const id=safeId(`${a}-${String(p).padStart(2,"0")}`); if(S.locations[id] || S.locations[id+"-0"]) continue; await backend.put("locations",id,{aisle:a,pos:p,level:0,cap:c}); n++; }
+    toast(`${n} emplacement(s) créé(s).`);
+  }]]);
+}
+function delLoc(lid){ const l=S.locations[lid]; if(!l) return;
+  if(used(byLoc(),lid)) return toast("Impossible : cet emplacement contient des palettes.",true);
+  modal("Supprimer l'emplacement",`<p>Supprimer définitivement l'emplacement <b class="mono">${esc(L(lid))}</b> ?</p>`,
+  [["Annuler"],["Supprimer","danger",async()=>{ if(used(byLoc(),lid)){ toast("Des palettes viennent d'y être posées.",true); return false; }
+    await backend.del("locations",lid); if(ui.hl===lid) ui.hl=null; toast(`Emplacement ${L(lid)} supprimé.`); }]]); }
+function capAisle(a){ const bl=byLoc(); const ls=Object.values(S.locations).filter(l=>l.aisle===a);
+  modal(`Capacité du dépôt ${esc(a)}`,`<div class="f"><label>Nouvelle capacité pour les ${ls.length} emplacements (palettes)</label><input id="ca_v" type="number" min="1" value="${cap(ls[0])}"></div><p class="muted">Un emplacement qui contient déjà plus de palettes garde sa capacité actuelle.</p>`,
+  [["Annuler"],["Appliquer","pri",async()=>{ const c=parseInt($("#ca_v").value); if(!(c>=1)){ toast("Valeur invalide.",true); return false; }
+    let n=0,skip=0; for(const l of ls){ if(cap(l)===c) continue; if(used(bl,l.id)>c){ skip++; continue; } await backend.put("locations",l.id,{...l,cap:c}); n++; }
+    toast(`${n} emplacement(s) modifié(s)${skip?` · ${skip} ignoré(s) car trop pleins`:""}.`); }]]); }
+function delAisle(a){ const bl=byLoc(); const ls=Object.values(S.locations).filter(l=>l.aisle===a && !used(bl,l.id));
+  modal("Supprimer des emplacements",`<p>Supprimer les <b>${ls.length}</b> emplacement(s) vide(s) du dépôt ${esc(a)} ? Les emplacements contenant des palettes sont conservés.</p>`,[["Annuler"],["Supprimer","danger",async()=>{ for(const l of ls) await backend.del("locations",l.id); toast("Emplacements supprimés."); }]]); }
+async function saveSettings(){ const v=parseInt($("#alertd").value); if(!(v>=0)) return toast("Valeur invalide.",true); await backend.setSettings({alertMonths:v}); toast("Réglages enregistrés."); }
+
+/* ============ DÉTAIL EMPLACEMENT / LIGNE DE STOCK ============ */
+function locDetail(lid){ const l=S.locations[lid]; if(!l) return; const xs=(byLoc()[lid]||[]).slice().sort((u,v)=>u.product.localeCompare(v.product)||dkey(u.dlc).localeCompare(dkey(v.dlc)));
+  const n=sumQ(xs); const prods={}; xs.forEach(x=>(prods[x.product] ||= []).push(x));
+  const recap = xs.length ? `<h4 style="margin:16px 0 6px">Total par produit et DLC</h4><table>
+    <tr><th>Produit</th><th>DLC</th><th class="num">Palettes</th><th>Reste</th></tr>
+    ${Object.keys(prods).sort().map(c=>{ const g=prods[c];
+      return g.map((x,i)=>`<tr class="click" data-line="${esc(x.id)}">${i===0?`<td rowspan="${g.length}" style="vertical-align:top"><b class="mono">${esc(c)}</b></td>`:""}<td>${DL(x.product,x.dlc)}</td><td class="num"><b>${qty(x)}</b></td><td>${stTag(x)}</td></tr>`).join("")
+        + (g.length>1?`<tr><td></td><td class="muted" style="white-space:nowrap">Total produit</td><td class="num"><b>${sumQ(g)}</b></td><td></td></tr>`:""); }).join("")}
+    <tr><td colspan="2"><b>Total emplacement</b></td><td class="num"><b>${n}</b></td><td></td></tr></table>` : "";
+  modal(`Emplacement ${esc(L(lid))}`,`<div class="kv"><div>Dépôt / position</div><div>${esc(l.aisle)} · ${l.pos}</div>
+    <div>Remplissage</div><div><b>${n} / ${cap(l)}</b> palette(s) ${n>=cap(l)?`<span class="tag t-bad">plein</span>`:`<span class="tag t-ok">${cap(l)-n} place(s) libre(s)</span>`}</div>
+    </div>${recap}
+    ${xs.length?`<p class="muted" style="font-size:12.5px">Cliquez sur une ligne pour transférer ou sortir des palettes de ce produit et de cette DLC.</p>`:""}
+    <div class="row" style="margin-top:14px"><div class="f"><label>Capacité (palettes)</label><input id="lc_v" type="number" min="${Math.max(1,n)}" value="${cap(l)}" style="width:110px" ${ro()}></div></div>`,
+  [["+ Ajouter un produit","pri",()=>{ setTimeout(()=>addNewToLoc(lid),10); }, !canWrite || n>=cap(l)],...(n?[]:[["Supprimer l'emplacement","danger",()=>{ setTimeout(()=>delLoc(lid),10); }, !canWrite]]),["Enregistrer la capacité","",async()=>{ const c=parseInt($("#lc_v").value); if(!(c>=1)){ toast("Valeur invalide.",true); return false; } if(c<n){ toast(`Il y a déjà ${n} palette(s) ici.`,true); return false; } if(c!==cap(l)){ await backend.put("locations",lid,{...l,cap:c}); toast("Capacité enregistrée."); } }, !canWrite],["Fermer","pri"]]);
+  document.querySelectorAll(".ov tr[data-line]").forEach(tr=>tr.onclick=()=>{ tr.closest(".ov").remove(); lineDetail(tr.dataset.line); });
+}
+function lineDetail(id){ const x=S.stock[id]; if(!x||!qty(x)) return; const pr=S.products[safeId(x.product)]||{};
+  const hist=Object.values(S.movements).filter(m=>m.product===x.product && dlcM(m.dlc)===dlcM(x.dlc) && (m.from===x.loc||m.to===x.loc)).sort((a,b)=>b.ts-a.ts).slice(0,10);
+  modal(`${esc(x.product)} · ${esc(L(x.loc))}`,`<div class="kv">
+    <div>Produit</div><div><b class="mono">${esc(x.product)}</b>${pr.format?` <span class="muted">· ${esc(pr.format)}</span>`:""}</div>
+    <div>Emplacement</div><div class="mono">${esc(L(x.loc))}</div>
+    <div>DLC</div><div>${DL(x.product,x.dlc)} ${stTag(x)}</div>
+    <div>Quantité</div><div><b>${qty(x)}</b> palette(s)</div></div>
+    ${hist.length?`<h4 style="margin:16px 0 6px">Derniers mouvements</h4>${hist.map(m=>`<div style="font-size:12.5px">${fmtTs(m.ts)} · ${(MV[m.type]||[m.type])[0]} ${mq(m)} pal. ${m.from?esc(L(m.from))+" → ":""}${esc(L(m.to))} ${m.op?"· "+esc(m.op):""}</div>`).join("")}`:""}`,
+  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite],[status(x)==="bad"?"Mettre au rebut":"Sortir","danger",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite],["Fermer","pri"]]); }
+function transfer(id){ const x=S.stock[id]; if(!x) return; const bl=byLoc();
+  /* Tous les emplacements sauf celui de départ : ceux qui ont déjà ce produit d'abord, puis le même dépôt, puis les autres */
+  const rank=l=>(bl[l.id]||[]).some(y=>y.product===x.product)?0:(l.aisle===locOf(x.loc).aisle?1:2);
+  const all=Object.values(S.locations).filter(l=>l.id!==x.loc).sort((a,b)=>rank(a)-rank(b)||locSort(a,b));
+  if(!all.length) return toast("Aucun autre emplacement.",true);
+  ui.tr={id};
+  modal(`Transférer ${esc(x.product)} (DLC ${fmtD(x.dlc)}) depuis ${esc(L(x.loc))}`,`<div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="f"><label>Nombre de palettes (max ${qty(x)})</label><input id="t_n" type="number" min="1" max="${qty(x)}" value="${qty(x)}" oninput="trInfo()"></div>
+    <div class="f"><label>Vers l'emplacement (tapez le code, ex. D303, ou choisissez dans la liste)</label><input id="t_to" class="mono" list="t_list" autocomplete="off" placeholder="Code emplacement" oninput="trInfo()">
+      <datalist id="t_list">${all.map(l=>{ const xs=bl[l.id]||[], u=sumQ(xs); return `<option value="${esc(L(l.id))}">${u}/${cap(l)} · ${xs.length?esc(xs.map(y=>y.product+" "+qty(y)).join(", ")):"vide"}</option>`; }).join("")}</datalist></div>
+    <div id="t_info" class="muted" style="font-size:12.5px;min-height:18px"></div>
+    <label id="t_growl" style="display:none;gap:8px;align-items:center"><input type="checkbox" id="t_grow" checked> Augmenter la capacité de l'emplacement pour faire de la place</label></div>`,
+  [["Annuler"],["Transférer","pri",async()=>{ const to=trDest(), k=parseInt($("#t_n").value); const cur=S.stock[id];
+    if(!to){ toast("Emplacement inconnu : choisissez-en un dans la liste.",true); return false; }
+    if(to===cur?.loc){ toast("C'est l'emplacement de départ.",true); return false; }
+    if(!cur||!(k>=1)||k>qty(cur)){ toast("Quantité invalide.",true); return false; }
+    const l=S.locations[to], free=cap(l)-used(byLoc(),to);
+    if(k>free){ if(!$("#t_grow").checked){ toast(`${L(to)} : seulement ${free} place(s) libre(s).`,true); return false; }
+      await backend.put("locations",to,{...l,cap:used(byLoc(),to)+k}); }
+    await addQty(cur.loc,cur.product,cur.dlc,-k); await addQty(to,cur.product,cur.dlc,k);
+    await logMove({type:"TRANSFERT",product:cur.product,dlc:dlcM(cur.dlc),qty:k,from:cur.loc,to,ref:""}); toast(`${k} palette(s) transférée(s) vers ${L(to)}.`); }, !canWrite]]);
+  setTimeout(()=>$("#t_to")?.focus(),30);
+}
+function trDest(){ const v=($("#t_to")?.value||"").toUpperCase().replace(/\s+/g,""); if(!v) return null;
+  const hit=Object.values(S.locations).find(l=>L(l.id).toUpperCase()===v||l.id.toUpperCase()===v); if(hit) return hit.id;
+  const p=parseLocCell(v); return p && !p.isNew ? p.id : null; }
+function trInfo(){ const info=$("#t_info"), gl=$("#t_growl"); if(!info) return; const to=trDest(), k=parseInt($("#t_n").value)||0, x=S.stock[ui.tr.id];
+  gl.style.display="none";
+  if(!to){ info.textContent=$("#t_to").value?"Emplacement inconnu.":""; return; }
+  if(to===x.loc){ info.textContent="C'est l'emplacement de départ."; return; }
+  const bl=byLoc(), xs=bl[to]||[], u=sumQ(xs), c=cap(S.locations[to]), free=c-u;
+  info.innerHTML=`<b>${esc(L(to))}</b> : ${u}/${c} palette(s) · ${xs.length?esc(xs.map(y=>`${y.product} ${qty(y)} (${fmtD(y.dlc)})`).join(", ")):"vide"} · ${free} place(s) libre(s)`;
+  if(k>free){ gl.style.display="flex"; gl.lastChild.textContent=` Augmenter la capacité de ${L(to)} de ${c} à ${u+k} palettes`; }
+}
+function quickOut(id){ const x=S.stock[id]; const rb=status(x)==="bad";
+  modal(rb?"Mettre au rebut":"Sortie de palettes",`<p>${esc(x.product)} · DLC ${DL(x.product,x.dlc)} · emplacement <span class="mono">${esc(L(x.loc))}</span> (${qty(x)} en stock)</p>
+    <div class="row"><div class="f" style="width:160px"><label>Nombre de palettes</label><input id="o_n" type="number" min="1" max="${qty(x)}" value="" placeholder="0"></div>
+    <div class="f" style="flex:1"><label>Référence / motif</label><input id="o_ref"></div></div>`,
+  [["Annuler"],["Confirmer","danger",async()=>{ const cur=S.stock[id], k=parseInt($("#o_n").value); if(!cur||!(k>=1)||k>qty(cur)){ toast(k>qty(cur)?`Maximum ${qty(cur)} palette(s) à cet emplacement.`:"Indiquez le nombre de palettes à sortir.",true); return false; }
+    await removeQty(cur,k,rb?"REBUT":"SORTIE",$("#o_ref").value.trim()); toast(`${k} palette(s) sortie(s) du stock.`); }]]);
+  const fo=()=>{ const el=$("#o_n"); if(el){ el.value=""; el.focus(); } }; fo(); setTimeout(fo,50); }
+
+/* Sortie depuis le stock : un produit + une DLC, réparti sur ses emplacements */
+function outProd(product,dlc){
+  const xs=lines().filter(x=>x.product===product && dlcM(x.dlc)===dlc).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc)));
+  if(!xs.length) return; const tot=sumQ(xs), rb=status(xs[0])==="bad";
+  modal(`${rb?"Mettre au rebut":"Sortir"} ${esc(product)} · DLC ${fmtD(dlc)}`,`<p class="muted" style="margin-top:0">${tot} palette(s) en stock sur ${xs.length} emplacement(s) ${stTag(xs[0])}</p>
+    <div class="row"><div class="f" style="width:170px"><label>Nombre de palettes à sortir</label><input id="op_n" type="number" min="1" max="${tot}" value="" placeholder="0" oninput="outSpread()"></div>
+    <div class="f" style="flex:1"><label>Référence / motif</label><input id="op_ref"></div></div>
+    <table style="margin-top:12px"><tr><th>Emplacement</th><th class="num">En stock</th><th class="num">À sortir</th></tr>
+    ${xs.map(x=>`<tr><td class="mono">${esc(L(x.loc))}</td><td class="num">${qty(x)}</td><td class="num"><input class="op_q" data-id="${esc(x.id)}" type="number" min="0" max="${qty(x)}" value="0" style="width:70px" oninput="outSum()"></td></tr>`).join("")}
+    <tr><td><b>Total</b></td><td class="num"><b>${tot}</b></td><td class="num"><b id="op_tot">0</b></td></tr></table>`,
+  [["Annuler"],["Confirmer la sortie","danger",async()=>{
+    const take=[...document.querySelectorAll(".op_q")].map(i=>({id:i.dataset.id,k:Math.max(0,parseInt(i.value)||0)})).filter(t=>t.k>0);
+    if(!take.length){ toast("Indiquez au moins une palette à sortir.",true); return false; }
+    for(const t of take){ const x=S.stock[t.id]; if(!x||t.k>qty(x)){ toast(`Quantité trop élevée pour ${L(x?.loc)}.`,true); return false; } }
+    const ref=$("#op_ref").value.trim(); let n=0;
+    for(const t of take){ const x=S.stock[t.id]; await removeQty(x,t.k,rb?"REBUT":"SORTIE",ref); n+=t.k; }
+    toast(`${n} palette(s) ${esc(product)} sortie(s) du stock.`); }, !canWrite]]);
+  outSpread(); const fo=()=>{ const el=$("#op_n"); if(el){ el.value=""; el.focus(); } }; fo(); setTimeout(fo,50);
+}
+function outSpread(){ let rest=Math.max(0,parseInt($("#op_n").value)||0); document.querySelectorAll(".op_q").forEach(i=>{ const m=+i.max, k=Math.min(m,rest); i.value=k; rest-=k; }); outSum(); }
+function outSum(){ let t=0; document.querySelectorAll(".op_q").forEach(i=>{ let v=Math.max(0,Math.min(+i.max,parseInt(i.value)||0)); t+=v; }); $("#op_tot").textContent=t; }
+
+/* Ajout d'un produit (existant ou nouveau) dans un emplacement donné */
+function addNewToLoc(lid){ const l=S.locations[lid]; if(!l) return; const free=cap(l)-used(byLoc(),lid);
+  if(free<=0) return toast(`${L(lid)} est plein (${cap(l)} palettes).`,true);
+  modal(`Ajouter un produit dans ${esc(L(lid))}`,`<p class="muted" style="margin-top:0">${free} place(s) libre(s). Si le code produit n'existe pas encore, il sera créé.</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div class="f"><label>Code produit *</label><input id="np_code" class="mono" list="np_list" placeholder="ex. EAU-PL-150" autocomplete="off" oninput="npHint()"><datalist id="np_list">${Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>`<option value="${esc(p.code)}">`).join("")}</datalist><span id="np_hint" class="muted" style="font-size:12px"></span></div>
+      <div class="row"><div class="f" style="width:150px"><label>Nombre de palettes *</label><input id="np_n" type="number" min="1" max="${free}" placeholder="0"></div>
+      <div class="f" style="width:170px"><label>DLC (MM/AA)</label><input id="np_d" placeholder="vide = sans DLC"></div>
+      <div class="f" style="flex:1"><label>Référence</label><input id="np_ref"></div></div></div>`,
+  [["Annuler"],["Ajouter","pri",async()=>{
+    const code=$("#np_code").value.trim().toUpperCase(), k=parseInt($("#np_n").value), dRaw=$("#np_d").value.trim();
+    const dlc = dRaw==="" ? "" : parseDlcCell(dRaw);
+    if(!code){ toast("Indiquez le code produit.",true); return false; }
+    if(!(k>=1)){ toast("Indiquez le nombre de palettes.",true); return false; }
+    if(dlc===null){ toast(`DLC illisible « ${dRaw} » : utilisez le format MM/AA.`,true); return false; }
+    const fr=cap(S.locations[lid])-used(byLoc(),lid); if(k>fr){ toast(`Maximum ${fr} palette(s) : place disponible à ${L(lid)}.`,true); return false; }
+    const isNew=!S.products[safeId(code)];
+    if(isNew) await backend.put("products",safeId(code),{code,name:"",format:"",perPallet:""});
+    await addQty(lid,code,dlc,k); await logMove({type:"ENTREE",product:code,dlc,qty:k,from:"",to:lid,ref:$("#np_ref").value.trim()});
+    toast(`${k} palette(s) ${code} ajoutée(s) à ${L(lid)}${isNew?" — nouveau produit créé":""}.`); }, !canWrite]]);
+  setTimeout(()=>$("#np_code")?.focus(),30);
+}
+function npHint(){ const c=$("#np_code").value.trim().toUpperCase(), h=$("#np_hint"); if(!h) return; h.textContent = c && !S.products[safeId(c)] ? "Nouveau produit : il sera créé." : ""; }
+
+/* Ajout sur une ligne existante (même emplacement, produit, DLC) */
+function addToLine(id){ const x=S.stock[id]; if(!x) return; const free=cap(S.locations[x.loc])-used(byLoc(),x.loc);
+  if(free<=0) return toast(`${L(x.loc)} est plein (${cap(S.locations[x.loc])} palettes).`,true);
+  modal("Ajouter des palettes",`<p>${esc(x.product)} · DLC ${DL(x.product,x.dlc)} · emplacement <span class="mono">${esc(L(x.loc))}</span> (${qty(x)} en stock, ${free} place(s) libre(s))</p>
+    <div class="row"><div class="f" style="width:160px"><label>Nombre de palettes</label><input id="a_n" type="number" min="1" max="${free}" value="" placeholder="0"></div>
+    <div class="f" style="flex:1"><label>Référence (bon de livraison…)</label><input id="a_ref"></div></div>`,
+  [["Annuler"],["Confirmer l'ajout","pri",async()=>{ const k=parseInt($("#a_n").value); const fr=cap(S.locations[x.loc])-used(byLoc(),x.loc);
+    if(!(k>=1)){ toast("Indiquez le nombre de palettes à ajouter.",true); return false; }
+    if(k>fr){ toast(`Maximum ${fr} palette(s) : place disponible à ${L(x.loc)}.`,true); return false; }
+    await addQty(x.loc,x.product,x.dlc,k); await logMove({type:"ENTREE",product:x.product,dlc:dlcM(x.dlc),qty:k,from:"",to:x.loc,ref:$("#a_ref").value.trim()});
+    toast(`${k} palette(s) ajoutée(s) à ${L(x.loc)}.`); }, !canWrite]]);
+  const fo=()=>{ const el=$("#a_n"); if(el){ el.value=""; el.focus(); } }; fo(); setTimeout(fo,50); }
+
+/* Ajout depuis le stock : un produit + une DLC, réparti sur les emplacements ayant de la place
+   (d'abord ceux qui ont déjà ce produit et cette DLC, puis ce produit, puis les autres). */
+function addProd(product,dlc){
+  const bl=byLoc();
+  const rank=l=>{ const xs=bl[l.id]||[]; return xs.some(x=>x.product===product&&dlcM(x.dlc)===dlc)?0: xs.some(x=>x.product===product)?1:2; };
+  const fl=Object.values(S.locations).map(l=>({...l,free:cap(l)-used(bl,l.id)})).filter(l=>l.free>0).sort((a,b)=>rank(a)-rank(b)||locSort(a,b));
+  if(!fl.length) return toast("Aucun emplacement avec de la place.",true);
+  const totFree=fl.reduce((s,l)=>s+l.free,0);
+  modal(`Ajouter ${esc(product)} · DLC ${fmtD(dlc)}`,`<p class="muted" style="margin-top:0">${totFree} place(s) libre(s) au total. Les emplacements qui ont déjà ce produit et cette DLC sont remplis en premier.</p>
+    <div class="row"><div class="f" style="width:170px"><label>Nombre de palettes à ajouter</label><input id="ap_n" type="number" min="1" max="${totFree}" value="" placeholder="0" oninput="addSpread()"></div>
+    <div class="f" style="flex:1"><label>Référence (bon de livraison…)</label><input id="ap_ref"></div></div>
+    <div class="scroll" style="margin-top:12px;max-height:320px"><table><tr><th>Emplacement</th><th>Contenu actuel</th><th class="num">Libre</th><th class="num">À ajouter</th></tr>
+    ${fl.map(l=>{ const xs=bl[l.id]||[]; return `<tr><td class="mono">${esc(L(l.id))}</td><td class="muted" style="font-size:12px">${xs.length?xs.map(x=>`${esc(x.product)} ${qty(x)} (${DL(x.product,x.dlc)})`).join(", "):"vide"}</td><td class="num">${l.free}</td><td class="num"><input class="ap_q" data-loc="${esc(l.id)}" type="number" min="0" max="${l.free}" value="0" style="width:70px" oninput="addSum()"></td></tr>`; }).join("")}
+    </table></div><p style="margin:8px 0 0;text-align:right">Total à ajouter : <b id="ap_tot">0</b></p>`,
+  [["Annuler"],["Confirmer l'ajout","pri",async()=>{
+    const put=[...document.querySelectorAll(".ap_q")].map(i=>({loc:i.dataset.loc,k:Math.max(0,parseInt(i.value)||0)})).filter(t=>t.k>0);
+    if(!put.length){ toast("Indiquez le nombre de palettes à ajouter.",true); return false; }
+    const b2=byLoc(); for(const t of put){ const fr=cap(S.locations[t.loc])-used(b2,t.loc); if(t.k>fr){ toast(`${L(t.loc)} : seulement ${fr} place(s) libre(s).`,true); return false; } }
+    const ref=$("#ap_ref").value.trim(); let n=0;
+    for(const t of put){ await addQty(t.loc,product,dlc,t.k); await logMove({type:"ENTREE",product,dlc,qty:t.k,from:"",to:t.loc,ref}); n+=t.k; }
+    toast(`${n} palette(s) ${product} ajoutée(s) au stock.`); }, !canWrite]]);
+  const fo=()=>{ const el=$("#ap_n"); if(el){ el.value=""; el.focus(); } }; fo(); setTimeout(fo,50);
+}
+function addSpread(){ let rest=Math.max(0,parseInt($("#ap_n").value)||0); document.querySelectorAll(".ap_q").forEach(i=>{ const k=Math.min(+i.max,rest); i.value=k; rest-=k; }); addSum(); }
+function addSum(){ let t=0; document.querySelectorAll(".ap_q").forEach(i=>{ t+=Math.max(0,Math.min(+i.max,parseInt(i.value)||0)); }); $("#ap_tot").textContent=t; }
+
+/* ============ EXPORT EXCEL (.xlsx généré dans le navigateur) ============ */
+function stockView(){ const f=ui.stockFilter, q=f.q.toLowerCase(); let ls=lines().sort(stockCmp);
+  if (f.p) ls=ls.filter(x=>x.product===f.p);
+  if (f.st==="alert") ls=ls.filter(x=>status(x)!=="ok"); else if (f.st) ls=ls.filter(x=>status(x)===f.st);
+  if (q) ls=ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
+  return ls; }
+function buildXlsx(sheets){
+  const enc=new TextEncoder(), X=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"");
+  const fonts=['<font><sz val="11"/><name val="Calibri"/></font>'], fills=['<fill><patternFill patternType="none"/></fill>','<fill><patternFill patternType="gray125"/></fill>'], borders=['<border><left/><right/><top/><bottom/><diagonal/></border>'], xfs=['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
+  const fk={},fl={},bk={},xk={};
+  const font=(b,col)=>{ const k=b+"|"+(col||""); if(fk[k]==null){ fk[k]=fonts.length; fonts.push(`<font>${b?"<b/>":""}<sz val="11"/>${col?`<color rgb="FF${col}"/>`:""}<name val="Calibri"/></font>`);} return fk[k]; };
+  const fill=col=>{ if(!col) return 0; if(fl[col]==null){ fl[col]=fills.length; fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="FF${col}"/><bgColor indexed="64"/></patternFill></fill>`);} return fl[col]; };
+  const border=top=>{ const k=top?"top":"thin"; if(bk[k]==null){ bk[k]=borders.length; borders.push(top?'<border><left/><right/><top style="medium"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FFDDE3EA"/></bottom><diagonal/></border>':'<border><left/><right/><top/><bottom style="thin"><color rgb="FFDDE3EA"/></bottom><diagonal/></border>');} return bk[k]; };
+  const style=(o={})=>{ const f=font(o.b,o.color), fi=fill(o.bg), bo=border(o.sep), al=o.right?1:0; const k=[f,fi,bo,al].join("|");
+    if(xk[k]==null){ xk[k]=xfs.length; xfs.push(`<xf numFmtId="0" fontId="${f}" fillId="${fi}" borderId="${bo}" xfId="0" applyFont="1" applyFill="1" applyBorder="1"${al?' applyAlignment="1"><alignment horizontal="right"/></xf>':'/>'}`);} return xk[k]; };
+  const col=n=>{ let s=""; n++; while(n){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; };
+  const sheetXml=sh=>{ const hs=style({b:true,bg:"E6EDF4",sep:false});
+    const rows=[`<row r="1">${sh.head.map((h,i)=>`<c r="${col(i)}1" t="inlineStr" s="${hs}"><is><t>${X(h)}</t></is></c>`).join("")}</row>`];
+    sh.rows.forEach((r,ri)=>{ const rn=ri+2; rows.push(`<row r="${rn}">${r.map((c,i)=>{ const st=style(c.s||{}); const ref=col(i)+rn;
+      return typeof c.v==="number" ? `<c r="${ref}" s="${st}"><v>${c.v}</v></c>` : `<c r="${ref}" t="inlineStr" s="${st}"><is><t xml:space="preserve">${X(c.v)}</t></is></c>`; }).join("")}</row>`); });
+    const last=col(sh.head.length-1)+(sh.rows.length+1);
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${sh.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${rows.join("")}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`; };
+  const sheetFiles=sheets.map((sh,i)=>[`xl/worksheets/sheet${i+1}.xml`,sheetXml(sh)]);
+  const files=[
+    ["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`],
+    ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((sh,i)=>`<sheet name="${X(sh.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ...sheetFiles ];
+  files.push(["xl/styles.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`]);
+  return zipStore(files.map(([n,c])=>[n,enc.encode(c)]));
+}
+/* Archive ZIP sans compression (format attendu par Excel) */
+function zipStore(entries){
+  const T=zipStore.T || (zipStore.T=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })());
+  const crc=b=>{ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c=T[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
+  const enc=new TextEncoder(), parts=[], central=[]; let off=0;
+  const d=new Date(), dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF, dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const [name,data] of entries){ const nb=enc.encode(name), c=crc(data);
+    const h=new DataView(new ArrayBuffer(30)); h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true); h.setUint16(10,dt,true); h.setUint16(12,dd,true); h.setUint32(14,c,true); h.setUint32(18,data.length,true); h.setUint32(22,data.length,true); h.setUint16(26,nb.length,true); h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer),nb,data);
+    const cd=new DataView(new ArrayBuffer(46)); cd.setUint32(0,0x02014b50,true); cd.setUint16(4,20,true); cd.setUint16(6,20,true); cd.setUint16(8,0x0800,true); cd.setUint16(10,0,true); cd.setUint16(12,dt,true); cd.setUint16(14,dd,true); cd.setUint32(16,c,true); cd.setUint32(20,data.length,true); cd.setUint32(24,data.length,true); cd.setUint16(28,nb.length,true); cd.setUint32(42,off,true);
+    central.push(new Uint8Array(cd.buffer),nb); off+=30+nb.length+data.length; }
+  const csize=central.reduce((s,a)=>s+a.length,0);
+  const e=new DataView(new ArrayBuffer(22)); e.setUint32(0,0x06054b50,true); e.setUint16(8,entries.length,true); e.setUint16(10,entries.length,true); e.setUint32(12,csize,true); e.setUint32(16,off,true);
+  return new Blob([...parts,...central,new Uint8Array(e.buffer)]);
+}
+function stockWorkbook(){
+  const ls=stockView(); const byProd=ui.stockSort.k==="product";
+  const G="2E9D5B", R="C9372C";
+  const rows1=ls.map((x,i)=>{ const bg=(depotBg(x.loc)||"").replace("#","").toUpperCase()||undefined, sep=byProd&&i>0&&ls[i-1].product!==x.product, base={bg,sep};
+    return [{v:x.product,s:base},{v:qty(x),s:{...base,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{...base,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:locOf(x.loc).aisle||"",s:base},{v:L(x.loc),s:base},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{...base,right:true}}]; });
+  const g={}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (g[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0}); g[k].n+=qty(x); });
+  const gl=Object.values(g).sort((a,b)=>a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)));
+  const rows2=gl.map((x,i)=>{ const sep=i>0&&gl[i-1].product!==x.product; return [{v:x.product,s:{sep}},{v:x.n,s:{sep,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{sep,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{sep,right:true}}]; });
+  rows2.push([{v:"TOTAL",s:{b:true,sep:true}},{v:sumQ(ls),s:{b:true,sep:true,right:true}},{v:"",s:{sep:true}},{v:"",s:{sep:true}}]);
+  return buildXlsx([
+    {name:"Stock par emplacement", head:["Produit","Palettes","DLC","Dépôt","Emplacement","Mois restants"], widths:[16,10,9,8,13,14], rows:rows1},
+    {name:"Total produit DLC", head:["Produit","Palettes","DLC","Mois restants"], widths:[16,10,9,14], rows:rows2} ]);
+}
+async function exportExcel(){
+  const ls=stockView(); if(!ls.length) return toast("Aucun stock à exporter.",true);
+  const d=new Date(), name=`stock-palettes-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.xlsx`;
+  const blob=stockWorkbook();
+  let dl=null; try{ dl = window.claude && claude.use ? await claude.use("downloads") : null; }catch(e){}
+  if (dl){ try{ await dl.save({filename:name, data:blob}); toast("Fichier Excel enregistré."); }
+    catch(e){ if(e && e.code==="declined") return; toast(e && e.code==="rate_limited" ? "Un téléchargement est déjà en attente de confirmation." : "Le téléchargement n'est pas disponible ici.",true); } return; }
+  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); }
+  catch(e){ toast("Le téléchargement n'est pas disponible dans cet affichage.",true); }
+}
+
+/* ============ IMPORT EXCEL ============
+   Colonnes : A = code produit, B = nombre de palettes, C = DLC, D = emplacement.
+   Produits et emplacements inconnus sont créés. */
+async function unzipEntries(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf); let e=-1;
+  for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-66000);i--) if(dv.getUint32(i,true)===0x06054b50){ e=i; break; }
+  if(e<0) throw new Error("zip");
+  const n=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true); const out={}, dec=new TextDecoder();
+  for(let k=0;k<n;k++){ if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), lo=dv.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nl)); p+=46+nl+xl+cl;
+    out[name]=async()=>{ const start=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true); const raw=u8.slice(start,start+csize);
+      if(method===0) return dec.decode(raw);
+      if(method===8){ const ds=new DecompressionStream("deflate-raw"); const bufOut=await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer(); return dec.decode(bufOut); }
+      throw new Error("method"); }; }
+  return out;
+}
+/* Lit toutes les feuilles d'un classeur .xlsx : {nomFeuille: lignes} (dans l'ordre du classeur) */
+async function readXlsxSheets(buf){
+  const z=await unzipEntries(buf), P=new DOMParser(), xml=async n=>z[n]?P.parseFromString(await z[n](),"application/xml"):null;
+  const byTag=(d,t)=>[...d.getElementsByTagNameNS("*",t)];
+  const ss=[]; const sd=await xml("xl/sharedStrings.xml"); if(sd) byTag(sd,"si").forEach(si=>ss.push(byTag(si,"t").map(t=>t.textContent).join("")));
+  const wb=await xml("xl/workbook.xml"), rels=await xml("xl/_rels/workbook.xml.rels"); const list=[];
+  if(wb&&rels) for(const sh of byTag(wb,"sheet")){ const rid=sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+    const rel=byTag(rels,"Relationship").find(r=>r.getAttribute("Id")===rid); if(rel){ let t=rel.getAttribute("Target"); t=t.startsWith("/")?t.slice(1):"xl/"+t.replace(/^\.\//,""); if(z[t]) list.push([sh.getAttribute("name")||t,t]); } }
+  if(!list.length && z["xl/worksheets/sheet1.xml"]) list.push(["Feuille1","xl/worksheets/sheet1.xml"]);
+  const colIdx=r=>{ const m=/^([A-Z]+)/.exec(r||""); let n=0; if(m) for(const ch of m[1]) n=n*26+ch.charCodeAt(0)-64; return n-1; };
+  const out={};
+  for(const [name,path] of list){ const ws=await xml(path); if(!ws) continue;
+    out[name]=byTag(ws,"row").map(row=>{ const arr=[]; byTag(row,"c").forEach(c=>{ const i=colIdx(c.getAttribute("r")), t=c.getAttribute("t"); const v=byTag(c,"v")[0]?.textContent;
+      let val; if(t==="s") val=ss[+v]??""; else if(t==="inlineStr") val=byTag(c,"t").map(x=>x.textContent).join(""); else if(t==="str"||t==="b") val=v??""; else val=v!=null&&v!==""?Number(v):"";
+      if(i>=0) arr[i]=val; }); return arr; }); }
+  if(!Object.keys(out).length) throw new Error("sheet");
+  return out;
+}
+async function readXlsxRows(buf){ const sh=await readXlsxSheets(buf); return Object.values(sh)[0]; }
+function readCsvRows(text){ const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.trim()); const sep=[";","\t",","].find(c=>lines[0]&&lines[0].includes(c))||";";
+  return lines.map(l=>l.split(sep).map(v=>{ v=v.trim().replace(/^"|"$/g,""); return v!==""&&/^-?\d+([.,]\d+)?$/.test(v)?Number(v.replace(",",".")):v; })); }
+function parseDlcCell(v){
+  let y,m;
+  if(typeof v==="number"){ if(v>20000&&v<80000){ const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000); y=d.getUTCFullYear(); m=d.getUTCMonth()+1; } else if(v>=100&&v<=1299){ m=Math.floor(v/100); y=2000+(v%100); } }
+  else { const t=String(v||"").trim(); let r;
+    if((r=/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/.exec(t))){ m=+r[2]; y=+r[3]; }
+    else if((r=/^(\d{4})[\/\-. ](\d{1,2})([\/\-. ]\d{1,2})?/.exec(t))){ y=+r[1]; m=+r[2]; }
+    else if((r=/^(\d{1,2})[\/\-. ](\d{2}|\d{4})$/.exec(t))){ m=+r[1]; y=+r[2]; }
+    else if((r=/^(\d{2})(\d{2})$/.exec(t))){ m=+r[1]; y=+r[2]; } }
+  if(y<100) y+=2000;
+  return (m>=1&&m<=12&&y>=2000&&y<=2099) ? `${y}-${String(m).padStart(2,"0")}` : null;
+}
+/* Codes d'emplacement abrégés utilisés dans les fichiers importés */
+const LOC_ALIAS = {C:"C01", FA:"F42", AF:"F42", AG:"G04", GA:"G04", AH:"H42", HA:"H42"};
+function parseLocCell(v){ let t=String(v??"").toUpperCase().replace(/\s+/g,""); if(LOC_ALIAS[t]) t=LOC_ALIAS[t]; const r=/^([A-Z]+)-?0*(\d+)(?:[-\/].*)?$/.exec(t); if(!r) return null; // "D303-305" ou "D303/2" -> D303
+  const aisle=r[1], pos=+r[2]; const ex=Object.values(S.locations).find(l=>l.aisle===aisle&&+l.pos===pos&&!+l.level);
+  return {aisle,pos,id: ex?ex.id:safeId(`${aisle}-${String(pos).padStart(2,"0")}`), isNew:!ex}; }
+async function importFile(input){
+  const f=input.files&&input.files[0]; input.value=""; if(!f) return;
+  let rows;
+  try{ const buf=await f.arrayBuffer(); rows = /\.xlsx$/i.test(f.name) ? await readXlsxRows(buf) : readCsvRows(new TextDecoder().decode(buf)); }
+  catch(e){ return toast("Impossible de lire ce fichier. Utilisez un fichier Excel (.xlsx) ou CSV.",true); }
+  rows=rows.filter(r=>r&&r.slice(0,4).some(v=>v!==""&&v!=null));
+  let off=1; if(rows.length && !(Number(rows[0][1])>0)){ rows=rows.slice(1); off=2; } // ligne d'en-tête
+  if(!rows.length) return toast("Le fichier ne contient aucune ligne.",true);
+  ui.imp={file:f.name,raw:rows.map(r=>[r[0]??"",r[1]??"",r[2]??"",r[3]??""]),lines:rows.map((_,i)=>i+off),doubt:[],mode:"add",cap:10,grow:true}; impBuild(); impModal();
+}
+/* Valide les lignes brutes (modifiables dans l'aperçu) */
+function impBuild(){ const im=ui.imp;
+  im.items=im.raw.map((r,i)=>{ const code=String(r[0]??"").trim().toUpperCase(), n=parseInt(r[1]), emptyD=r[2]==null||String(r[2]).trim()==="", dlc=emptyD?"":parseDlcCell(r[2]), loc=parseLocCell(r[3]); const err=[];
+    if(!code) err.push("code produit manquant"); if(!(n>=1)) err.push("nombre de palettes invalide"); if(dlc===null) err.push(`DLC illisible « ${r[2]??""} »`); if(!loc) err.push(`emplacement illisible « ${r[3]??""} »`);
+    return {idx:i,line:im.lines[i],code,n,dlc,loc,err,doubt:!!im.doubt[i],newProd:code&&!S.products[safeId(code)]}; }); }
+function impEdit(i,c,v){ ui.imp.raw[i][c]=v; impBuild(); setTimeout(()=>{ const a=document.activeElement, id=a&&a.id; impModal(); if(id){ const el=document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } } },0); }
+function impDel(i){ const im=ui.imp; im.raw.splice(i,1); im.lines.splice(i,1); im.doubt.splice(i,1); impBuild(); impModal(); }
+function impPlan(){ const im=ui.imp, ok=im.items.filter(x=>!x.err.length); const bl=byLoc();
+  const need={}; ok.forEach(x=>need[x.loc.id]=(need[x.loc.id]||0)+x.n);
+  const over=[]; for(const [id,q] of Object.entries(need)){ const l=S.locations[id]; const cur=im.mode==="replace"?0:used(bl,id); const c=l?cap(l):Math.max(im.cap,q); if(cur+q>c) over.push({id,need:cur+q,cap:c}); }
+  return {ok,need,over,newProds:[...new Set(ok.filter(x=>x.newProd).map(x=>x.code))],newLocs:[...new Set(ok.filter(x=>x.loc.isNew).map(x=>x.loc.id))]}; }
+function impModal(){
+  document.querySelectorAll(".ov.imp").forEach(o=>o.remove());
+  const im=ui.imp, pl=impPlan(), bad=im.items.filter(x=>x.err.length), tot=pl.ok.reduce((s,x)=>s+x.n,0);
+  const blocked = !pl.ok.length || (pl.over.length && !im.grow);
+  modal(`Importer « ${esc(im.file)} »`,`
+    <div class="kv"><div>Lignes valides</div><div><b>${pl.ok.length}</b> ligne(s) · <b>${tot}</b> palette(s)</div>
+    <div>Lignes en erreur</div><div>${bad.length?`<b style="color:var(--bad)">${bad.length}</b> (ignorées)`:"aucune"}</div>
+    <div>Produits à créer</div><div>${pl.newProds.length?pl.newProds.map(esc).join(", "):"aucun"}</div>
+    <div>Emplacements à créer</div><div>${pl.newLocs.length?pl.newLocs.map(id=>esc(L(id)||id.replace(/-/g,""))).join(", "):"aucun"}</div></div>
+    <div class="row" style="margin-top:14px;gap:16px">
+      <div class="f"><label>Mode</label><select onchange="ui.imp.mode=this.value;impModal()"><option value="add" ${im.mode==="add"?"selected":""}>Ajouter au stock existant</option><option value="replace" ${im.mode==="replace"?"selected":""}>Remplacer tout le stock par le fichier</option></select></div>
+      ${pl.newLocs.length?`<div class="f"><label>Capacité des nouveaux emplacements</label><input type="number" min="1" value="${im.cap}" style="width:110px" onchange="ui.imp.cap=Math.max(1,parseInt(this.value)||1);impModal()"></div>`:""}
+    </div>
+    ${im.mode==="replace"?`<div class="banner" style="margin:10px 0 0">Tout le stock actuel (${sumQ(lines())} palettes) sera supprimé puis remplacé par le contenu du fichier.</div>`:""}
+    ${pl.over.length?`<div class="banner" style="margin:10px 0 0">${pl.over.length} emplacement(s) dépasseraient leur capacité : ${pl.over.slice(0,8).map(o=>`${esc(L(o.id)||o.id)} (${o.need}/${o.cap})`).join(", ")}${pl.over.length>8?"…":""}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" ${im.grow?"checked":""} onchange="ui.imp.grow=this.checked;impModal()"> Augmenter leur capacité automatiquement</label></div>`:""}
+    <p class="muted" style="margin:12px 0 4px;font-size:12.5px">Vous pouvez corriger chaque case avant d'importer.${im.doubt.some(Boolean)?' Les lignes <b style="background:var(--soonbg);padding:0 4px">en orange</b> ont été lues avec un doute : vérifiez-les.':""}</p>
+    <div class="scroll" style="max-height:340px"><table class="impt"><tr><th>Ligne</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Emplacement</th><th>Lu comme</th><th></th></tr>
+    ${im.items.map(x=>{ const r=im.raw[x.idx], inp=(c,w)=>`<input id="imp_${x.idx}_${c}" value="${esc(r[c])}" style="width:${w}px" onchange="impEdit(${x.idx},${c},this.value)">`;
+      return `<tr style="${x.err.length?"background:var(--badbg)":x.doubt?"background:var(--soonbg)":""}"><td class="muted">${x.line}</td><td>${inp(0,120)}</td><td class="num">${inp(1,56)}</td><td>${inp(2,74)}</td><td>${inp(3,80)}</td>
+      <td style="font-size:12px">${x.err.length?`<span style="color:var(--bad)">${esc(x.err.join(", "))}</span>`:`<span class="mono">${esc(x.code)}</span> · ${x.n} pal. · ${x.dlc?fmtD(x.dlc):"sans DLC"} · <span class="mono">${esc(x.loc.aisle+String(x.loc.pos).padStart(2,"0"))}</span>${x.newProd?' · <i>nouveau produit</i>':""}${x.loc.isNew?' · <i>nouvel empl.</i>':""}`}</td>
+      <td><button class="sm" title="Supprimer la ligne" onclick="impDel(${x.idx})">✕</button></td></tr>`; }).join("")}</table></div>`,
+  [["Annuler"],[`Importer ${tot} palette(s)`,"pri",async()=>{ await impApply(); }, blocked||!canWrite]]);
+  const ovs=document.querySelectorAll(".ov"); ovs[ovs.length-1].classList.add("imp"); ovs[ovs.length-1].querySelector(".modal").style.maxWidth="900px";
+}
+async function impApply(){
+  const im=ui.imp, pl=impPlan(); if(!pl.ok.length) return false;
+  if(pl.over.length && !im.grow){ toast("Capacité insuffisante pour certains emplacements.",true); return false; }
+  const ref=`Import ${im.file}`;
+  try{
+    for(const code of pl.newProds) await backend.put("products",safeId(code),{code,name:"",format:"",perPallet:""});
+    for(const id of pl.newLocs){ const x=pl.ok.find(i=>i.loc.id===id).loc; await backend.put("locations",id,{aisle:x.aisle,pos:x.pos,level:0,cap:Math.max(im.cap,pl.need[id])}); }
+    if(im.mode==="replace"){ for(const x of lines()){ await logMove({type:"SORTIE",product:x.product,dlc:dlcM(x.dlc),qty:qty(x),from:x.loc,to:"",ref:"Remplacement par import"}); await backend.del("stock",x.id); } }
+    for(const o of pl.over){ const l=S.locations[o.id]; if(l && cap(l)<o.need) await backend.put("locations",o.id,{...l,cap:o.need}); }
+    const agg={}; pl.ok.forEach(x=>{ const k=lineId(x.loc.id,x.code,x.dlc); (agg[k] ||= {loc:x.loc.id,product:x.code,dlc:x.dlc,n:0}).n+=x.n; });
+    let n=0; for(const a of Object.values(agg)){ await addQty(a.loc,a.product,a.dlc,a.n); await logMove({type:"ENTREE",product:a.product,dlc:a.dlc,qty:a.n,from:"",to:a.loc,ref}); n+=a.n; }
+    toast(`Import terminé : ${n} palette(s)${pl.newProds.length?`, ${pl.newProds.length} produit(s) créé(s)`:""}${pl.newLocs.length?`, ${pl.newLocs.length} emplacement(s) créé(s)`:""}.`);
+  }catch(e){ return false; }
+}
+
+/* ============ IMPORT D'UN RELEVÉ MANUSCRIT (PDF ou photo) ============
+   Les pages sont converties en images puis lues par Claude ; le résultat passe par l'aperçu modifiable. */
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+const loadScript = src => new Promise((ok,ko)=>{ const t=document.createElement("script"); t.src=src; t.onload=ok; t.onerror=()=>ko(new Error("script")); document.head.appendChild(t); });
+async function loadPdfJs(){ if(window.pdfjsLib && window.pdfjsWorker) return window.pdfjsLib;
+  await loadScript(PDFJS+"pdf.worker.min.js"); await loadScript(PDFJS+"pdf.min.js"); // le "worker" tourne dans la page
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS+"pdf.worker.min.js"; return pdfjsLib; }
+async function pdfToImages(buf, max){
+  const lib=await loadPdfJs(); const pdf=await lib.getDocument({data:new Uint8Array(buf)}).promise; const out=[];
+  for(let n=1;n<=Math.min(pdf.numPages,max);n++){ const page=await pdf.getPage(n); const v0=page.getViewport({scale:1}); const scale=Math.min(3,1800/Math.max(v0.width,v0.height));
+    const vp=page.getViewport({scale}); const c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    const ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height); await page.render({canvasContext:ctx,viewport:vp}).promise;
+    out.push(await new Promise(r=>c.toBlob(r,"image/jpeg",0.9))); }
+  return {images:out, pages:pdf.numPages};
+}
+const ONLINE_URL="https://claude.ai/artifact/FCEwewqa2Jy3E1YRdpeDDo";
+async function claudeThen(sel,what){ $(sel).click(); }
+function claudeNeeded(what){ modal("Lecture par Claude indisponible",`<p>${what} utilise Claude pour lire le document, mais le serveur n'est pas encore connecté. Rechargez la page puis réessayez.</p>`,[["Fermer","pri"]]); }
+let getSample = async () => ST.ready ? stSample : null;
+let ocrCtl=null;
+async function importScan(input){
+  const f=input.files&&input.files[0]; input.value=""; if(!f) return;
+  const sample=await getSample(); if(!sample) return claudeNeeded("L'import d'un relevé manuscrit");
+  const lim=await sample.limits().catch(()=>null); if(!lim||!lim.images) return claudeNeeded("L'import d'un relevé manuscrit");
+  ocrCtl=new AbortController();
+  modal("Lecture du relevé manuscrit",`<p id="ocr_msg">Préparation du fichier « ${esc(f.name)} »…</p><p class="muted" style="font-size:12.5px">La lecture d'une écriture manuscrite peut prendre jusqu'à une ou deux minutes.</p>`,[["Arrêter","",()=>{ ocrCtl&&ocrCtl.abort(); }]]);
+  const msg=t=>{ const el=$("#ocr_msg"); if(el) el.textContent=t; }; const closeWait=()=>{ const el=$("#ocr_msg"); if(el) el.closest(".ov").remove(); };
+  let images=[], note="";
+  try{
+    if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){ msg("Conversion des pages du PDF…"); const r=await pdfToImages(await f.arrayBuffer(), lim.images.maxCount); images=r.images; if(r.pages>images.length) note=`Seules les ${images.length} premières pages sur ${r.pages} ont été lues.`; }
+    else images=[f];
+  }catch(e){ closeWait(); return toast("Impossible d'ouvrir ce PDF. Vous pouvez aussi importer une photo (JPG ou PNG) du relevé.",true); }
+  const prods=Object.values(S.products).map(p=>p.code).sort(), locs=Object.values(S.locations).sort(locSort).map(l=>L(l.id));
+  const prompt=`Tu lis ${images.length>1?`${images.length} pages d'un relevé`:"un relevé"} de stock d'un dépôt de palettes d'eau, écrit à la main (en français).
+Chaque ligne du relevé indique : un code produit, un nombre de palettes, une date de péremption (DLC, mois/année, parfois absente) et un emplacement.
+Un emplacement s'écrit avec la ou les lettres du dépôt suivies d'un numéro (ex. D303, F12). S'il y a deux numéros séparés par "-" ou "/", garde le texte tel quel.
+Abréviations possibles d'emplacement : C, FA, AF, AG, GA, AH, HA (recopie-les telles quelles).
+Codes produits déjà connus (préfère-les quand l'écriture est ambiguë, sans en inventer) : ${prods.join(", ")||"aucun"}.
+Emplacements déjà connus : ${locs.slice(0,400).join(", ")||"aucun"}.
+Ignore les titres, totaux, signatures et lignes barrées. Si une valeur répétée est notée par un guillemet ou "id.", recopie la valeur de la ligne précédente.
+Réponds uniquement par un tableau JSON, une entrée par ligne du relevé, dans l'ordre :
+[{"code":"EAU-PL-150","palettes":3,"dlc":"05/27","emplacement":"D303","doute":false}]
+"dlc" au format MM/AA, ou "" si absente. "doute": true si une valeur de la ligne est difficile à lire.`;
+  msg("Lecture de l'écriture par Claude…");
+  let data;
+  try{ data=await sample.json(prompt,{images,modelTier:"complex",signal:ocrCtl.signal}); }
+  catch(e){ closeWait(); if(e&&e.code==="cancelled") return;
+    const m={not_granted:"Vous n'avez pas autorisé ce logiciel à utiliser Claude.",rate_limited:"Trop de demandes pour le moment, réessayez dans quelques minutes.",image_rejected:"Le fichier n'a pas pu être envoyé (format ou taille).",invalid_json:"La réponse n'a pas pu être lue, réessayez.",refused:"Claude n'a pas pu lire ce document.",session_expired:"Reconnectez-vous à Claude puis réessayez."};
+    return toast(m[e&&e.code]||(e&&e.msg)||"La lecture a échoué, réessayez.",true); }
+  closeWait();
+  const arr=Array.isArray(data)?data:(data&&Array.isArray(data.lignes)?data.lignes:[]);
+  const rows=arr.filter(r=>r&&typeof r==="object").map(r=>[String(r.code??"").trim(), r.palettes??"", String(r.dlc??"").trim(), String(r.emplacement??"").trim()]);
+  if(!rows.length) return toast("Aucune ligne de stock n'a été trouvée dans ce document.",true);
+  ui.imp={file:f.name,raw:rows,lines:rows.map((_,i)=>i+1),doubt:arr.map(r=>!!(r&&r.doute)),mode:"add",cap:10,grow:true}; impBuild(); impModal();
+  if(note) toast(note);
+}
+
+/* ============ FICHIER DE DONNÉES (données hors du logiciel) ============
+   Classeur Excel « donnees-palettes.xlsx » : feuilles Stock, Produits, Emplacements, Mouvements, Réglages.
+   Version en ligne : bouton d'export. Version sur PC (fichier .html ouvert dans Chrome/Edge) :
+   le logiciel lit ce fichier et l'enregistre automatiquement après chaque modification. */
+const DATA_SHEETS=["Stock","Produits","Emplacements","Mouvements","Réglages"];
+function buildDataWorkbook(){
+  const h={b:true}, str=v=>({v:v==null?"":String(v)}), num=v=>({v:Number(v)||0,s:{right:true}});
+  const locs=Object.values(S.locations).sort(locSort);
+  const stock=lines().sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc))||a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)))
+    .map(x=>[str(L(x.loc)),str(x.product),num(qty(x)),str(dlcM(x.dlc)?fmtD(x.dlc):"")]);
+  const prods=Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>[str(p.code),str(p.name||""),str(p.format||""),p.perPallet?num(p.perPallet):str("")]);
+  const lrows=locs.map(l=>[str(L(l.id)),str(l.aisle),num(l.pos),num(cap(l)),str(l.id)]);
+  const mv=Object.values(S.movements).sort((a,b)=>a.ts-b.ts).map(m=>[str(new Date(m.ts).toISOString()),str(m.type),str(m.product),num(mq(m)),str(dlcM(m.dlc)?fmtD(m.dlc):""),str(m.from?L(m.from):""),str(m.to?L(m.to):""),str(m.ref||""),str(m.op||"")]);
+  return buildXlsx([
+    {name:"Stock",head:["Emplacement","Produit","Palettes","DLC (MM/AA)"],widths:[14,16,10,12],rows:stock},
+    {name:"Produits",head:["Code produit","Désignation","Format","Colis/palette"],widths:[16,28,18,13],rows:prods},
+    {name:"Emplacements",head:["Emplacement","Dépôt","Position","Capacité","Id interne"],widths:[14,8,10,10,14],rows:lrows},
+    {name:"Mouvements",head:["Date","Type","Produit","Palettes","DLC","De","Vers","Référence","Opérateur"],widths:[22,11,16,10,8,10,10,24,14],rows:mv},
+    {name:"Réglages",head:["Réglage","Valeur"],widths:[28,10],rows:[[str("Seuil alerte péremption (mois)"),num(alertM())]]} ]);
+}
+/* Lit le classeur et remplace les données en mémoire. Les lignes ajoutées à la main dans Excel sont acceptées. */
+async function loadDataWorkbook(buf){
+  const sh=await readXlsxSheets(buf), get=n=>{ const k=Object.keys(sh).find(x=>x.toLowerCase()===n.toLowerCase()); return k?sh[k].slice(1):null; };
+  if(!get("Stock")&&!get("Emplacements")) throw new Error("format");
+  const P={},Lc={},St={},Mv={}; const blank=r=>!r||r.every(v=>v===""||v==null);
+  (get("Produits")||[]).forEach(r=>{ if(blank(r)) return; const code=String(r[0]??"").trim().toUpperCase(); if(!code) return; P[safeId(code)]={id:safeId(code),code,name:String(r[1]??""),format:String(r[2]??""),perPallet:r[3]===""||r[3]==null?"":Number(r[3])}; });
+  const byCode={};
+  (get("Emplacements")||[]).forEach(r=>{ if(blank(r)) return; let code=String(r[0]??"").toUpperCase().replace(/\s+/g,""); let aisle=String(r[1]??"").trim().toUpperCase(), pos=parseInt(r[2]);
+    if((!aisle||!(pos>=0)) && code){ const m=/^([A-Z]+)-?0*(\d+)/.exec(code); if(m){ aisle=m[1]; pos=+m[2]; } }
+    if(!aisle||!(pos>=0)) return; let id=String(r[4]??"").trim(); if(!id) id=safeId(`${aisle}-${String(pos).padStart(2,"0")}`);
+    const lv=/^.+-\d+-(\d+)$/.exec(id); Lc[id]={id,aisle,pos,level:lv?+lv[1]:0,cap:Math.max(1,parseInt(r[3])||1)};
+    byCode[(code||`${aisle}${String(pos).padStart(2,"0")}`)]=id; byCode[`${aisle}${String(pos).padStart(2,"0")}`]=byCode[`${aisle}${String(pos).padStart(2,"0")}`]||id; });
+  const locIdOf=v=>{ let t=String(v??"").toUpperCase().replace(/\s+/g,""); if(LOC_ALIAS[t]) t=LOC_ALIAS[t]; if(byCode[t]) return byCode[t];
+    const m=/^([A-Z]+)-?0*(\d+)/.exec(t); if(!m) return null; const k=`${m[1]}${String(+m[2]).padStart(2,"0")}`; if(byCode[k]) return byCode[k];
+    const id=safeId(`${m[1]}-${String(+m[2]).padStart(2,"0")}`); Lc[id]=Lc[id]||{id,aisle:m[1],pos:+m[2],level:0,cap:1}; byCode[k]=id; return id; };
+  let bad=0;
+  (get("Stock")||[]).forEach(r=>{ if(blank(r)) return; const loc=locIdOf(r[0]), code=String(r[1]??"").trim().toUpperCase(), n=parseInt(r[2]); const e=r[3]==null||String(r[3]).trim()===""; const d=e?"":parseDlcCell(r[3]);
+    if(!loc||!code||!(n>0)||d===null){ bad++; return; }
+    if(!P[safeId(code)]) P[safeId(code)]={id:safeId(code),code,name:"",format:"",perPallet:""};
+    const id=lineId(loc,code,d); St[id]={id,loc,product:code,dlc:d,qty:(St[id]?St[id].qty:0)+n}; });
+  // capacité au moins égale au contenu
+  const use={}; Object.values(St).forEach(x=>use[x.loc]=(use[x.loc]||0)+x.qty); for(const [id,u] of Object.entries(use)) if(Lc[id] && Lc[id].cap<u) Lc[id].cap=u;
+  (get("Mouvements")||[]).forEach((r,i)=>{ if(blank(r)) return; const ts=Date.parse(r[0])||(typeof r[0]==="number"?Math.round((r[0]-25569)*86400000):0); if(!ts) return;
+    const d=r[4]==null||String(r[4]).trim()===""?"":(parseDlcCell(r[4])||""); const id="MV-F"+i;
+    Mv[id]={id,ts,type:String(r[1]??"").toUpperCase(),product:String(r[2]??"").toUpperCase(),qty:parseInt(r[3])||1,dlc:d,from:r[5]?(locIdOf(r[5])||String(r[5])):"",to:r[6]?(locIdOf(r[6])||String(r[6])):"",ref:String(r[7]??""),op:String(r[8]??"")}; });
+  const reg=get("Réglages")||get("Reglages")||[]; let am=2; reg.forEach(r=>{ if(/alerte/i.test(String(r[0]??""))&&parseInt(r[1])>=0) am=parseInt(r[1]); });
+  S.products=P; S.locations=Lc; S.stock=St; S.movements=Mv; S.settings={alertMonths:am}; _minD=null;
+  return {bad};
+}
+const dataFileName=()=>"donnees-palettes.xlsx";
+async function exportDataFile(){
+  const blob=buildDataWorkbook(), name=dataFileName();
+  let dl=null; try{ dl=window.claude&&claude.use?await claude.use("downloads"):null; }catch(e){}
+  if(dl){ try{ await dl.save({filename:name,data:blob}); toast("Fichier de données enregistré."); }catch(e){ if(e&&e.code!=="declined") toast("Le téléchargement n'est pas disponible ici.",true); } return; }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+}
+
+/* ----- Mode fichier (logiciel ouvert depuis le PC) ----- */
+const FS = { handle:null, name:"", lastSaved:0, timer:null, saving:false, again:false, fallback:!window.showOpenFilePicker, dirty:false };
+const fileBackend = {
+  async put(c,id,data){ S[c][id]={...data,id}; fileChanged(); },
+  async del(c,id){ delete S[c][id]; fileChanged(); },
+  async setSettings(d){ S.settings={...S.settings,...d}; fileChanged(); }
+};
+function fileChanged(){ _minD=null; FS.dirty=true; render(); fileStatus(); clearTimeout(FS.timer); if(FS.handle) FS.timer=setTimeout(fileSave,700); }
+function fileStatus(){ const m=$("#mode"); if(!m) return;
+  if(!FS.name){ m.innerHTML="Fichier de données<br><span style='opacity:.7'>aucun fichier ouvert</span>"; return; }
+  const st = FS.saving ? "enregistrement…" : FS.handle ? (FS.dirty?"modifications en attente":"enregistré ✓") : (FS.dirty?"<b style='color:#ffd43b'>non enregistré</b>":"à jour");
+  m.innerHTML=`📄 ${esc(FS.name)}<br><span style='opacity:.8'>${st}</span>${!FS.handle&&FS.name?`<br><button class="sm yellow" style="margin-top:6px" onclick="fileDownload()">Enregistrer le fichier</button>`:""}`; }
+async function fileSave(){
+  if(!FS.handle) return; if(FS.saving){ FS.again=true; return; }
+  FS.saving=true; fileStatus();
+  try{ const w=await FS.handle.createWritable(); await w.write(buildDataWorkbook()); await w.close(); FS.lastSaved=Date.now(); FS.dirty=false; }
+  catch(e){ toast("Enregistrement impossible : fermez le fichier dans Excel puis refaites la dernière action.",true); }
+  FS.saving=false; fileStatus(); if(FS.again){ FS.again=false; fileSave(); }
+}
+function fileDownload(){ const blob=buildDataWorkbook(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=FS.name||dataFileName(); document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); FS.dirty=false; fileStatus(); }
+const idb = (op,val) => new Promise(res=>{ try{ const r=indexedDB.open("depot-fichier",1); r.onupgradeneeded=()=>r.result.createObjectStore("h"); r.onerror=()=>res(null);
+  r.onsuccess=()=>{ const tx=r.result.transaction("h",op==="get"?"readonly":"readwrite"), st=tx.objectStore("h"); const q=op==="get"?st.get("file"):st.put(val,"file"); q.onsuccess=()=>res(q.result||null); q.onerror=()=>res(null); }; }catch(e){ res(null); } });
+async function fileUse(handle){ const f=await handle.getFile(); const r=await loadDataWorkbook(await f.arrayBuffer());
+  FS.handle=handle; FS.name=f.name; FS.lastSaved=f.lastModified; FS.dirty=false; loaded=true; idb("put",handle); $("#banner").innerHTML="";
+  fileStatus(); render(); toast(`« ${f.name} » ouvert${r.bad?` — ${r.bad} ligne(s) de stock illisible(s) ignorée(s)`:""}.`); }
+const XLSX_TYPES=[{description:"Classeur Excel",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}];
+async function fileOpen(){
+  if(FS.fallback) return $("#datafile").click();
+  try{ const [h]=await window.showOpenFilePicker({types:XLSX_TYPES,multiple:false}); if((await h.requestPermission({mode:"readwrite"}))!=="granted") return toast("Autorisation d'écriture refusée.",true); await fileUse(h); }
+  catch(e){ if(e&&e.name!=="AbortError") toast("Impossible d'ouvrir ce fichier de données.",true); }
+}
+async function fileCreate(){
+  if(FS.fallback){ S.products={};S.locations={};S.stock={};S.movements={}; FS.name=dataFileName(); FS.dirty=true; loaded=true; fileStatus(); render(); return; }
+  try{ const h=await window.showSaveFilePicker({suggestedName:dataFileName(),types:XLSX_TYPES}); S.products={};S.locations={};S.stock={};S.movements={};S.settings={alertMonths:2};
+    FS.handle=h; FS.name=h.name; loaded=true; idb("put",h); await fileSave(); render(); toast("Nouveau fichier de données créé."); }
+  catch(e){ if(e&&e.name!=="AbortError") toast("Impossible de créer le fichier.",true); }
+}
+async function fileReopen(){ const h=FS.saved; if(!h) return; try{ if((await h.requestPermission({mode:"readwrite"}))!=="granted") return toast("Autorisation refusée.",true); await fileUse(h); }catch(e){ toast("Le fichier n'est plus disponible : ouvrez-le à nouveau.",true); } }
+async function fileInputPicked(inp){ const f=inp.files&&inp.files[0]; inp.value=""; if(!f) return;
+  try{ const r=await loadDataWorkbook(await f.arrayBuffer()); FS.name=f.name; FS.dirty=false; loaded=true; fileStatus(); render(); toast(`« ${f.name} » ouvert${r.bad?` — ${r.bad} ligne(s) ignorée(s)`:""}. Pensez à « Enregistrer le fichier » après vos modifications.`); }
+  catch(e){ toast("Ce fichier n'est pas un fichier de données valide.",true); } }
+function vFileStart(){
+  return `<div class="card" style="max-width:680px"><h2>📄 Fichier de données</h2>
+    <p>Dans cette version, les palettes sont gardées dans un <b>fichier Excel séparé</b> (par exemple <span class="mono">donnees-palettes.xlsx</span>) que le logiciel lit et met à jour${FS.fallback?"":" automatiquement après chaque modification"}.</p>
+    <div class="row" style="gap:10px;margin:14px 0">
+      ${FS.saved?`<button class="pri" onclick="fileReopen()">Rouvrir « ${esc(FS.saved.name)} »</button>`:""}
+      <button class="${FS.saved?"":"pri"}" onclick="fileOpen()">Ouvrir un fichier de données…</button>
+      <button onclick="fileCreate()">Créer un nouveau fichier</button>
+      <input type="file" id="datafile" accept=".xlsx" style="display:none" onchange="fileInputPicked(this)">
+    </div>
+    ${FS.fallback?`<div class="banner" style="margin:0">Ce navigateur ne permet pas l'enregistrement automatique : utilisez Google Chrome ou Microsoft Edge. Sinon, cliquez sur « Enregistrer le fichier » (en bas à gauche) après vos modifications.</div>`:""}
+    <p class="muted" style="font-size:12.5px;margin-bottom:0">Vous pouvez aussi ouvrir ce fichier dans Excel pour le consulter. Fermez-le dans Excel pendant que vous travaillez dans le logiciel.</p></div>`;
+}
+async function initFileMode(){
+  document.body.classList.add("noclaude"); backend=fileBackend; FS.saved=await idb("get"); fileStatus(); render();
+  window.addEventListener("focus", async ()=>{ if(!FS.handle||FS.saving) return; try{ const f=await FS.handle.getFile(); if(f.lastModified>FS.lastSaved+1500){ FS.lastSaved=f.lastModified;
+    $("#banner").innerHTML=`<div class="banner">« ${esc(f.name)} » a été modifié en dehors du logiciel (dans Excel ?). <button class="sm" onclick="fileUse(FS.handle)">Recharger le fichier</button></div>`; } }catch(e){} });
+  window.addEventListener("beforeunload", e=>{ if(FS.dirty){ e.preventDefault(); e.returnValue=""; } });
+}
+
+/* ============ RECHERCHE ============ */
+$("#q").addEventListener("input",e=>{ const q=e.target.value.trim().toLowerCase(), box=$("#qres"); if(q.length<2){ box.style.display="none"; return; }
+  const res=[]; for(const x of lines().sort(fefo)) if([x.loc,L(x.loc),x.product,prodName(x.product)].join(" ").toLowerCase().includes(q)) res.push(`<div onclick="lineDetail('${esc(x.id)}')"><b class="mono">${esc(L(x.loc))}</b> · ${esc(x.product)} · <b>${qty(x)}</b> pal. · DLC ${DL(x.product,x.dlc)} ${stTag(x)}</div>`);
+  const bl=byLoc(); const lr=[]; for(const l of Object.values(S.locations).sort(locSort)) if((l.id+" "+L(l.id)).toLowerCase().includes(q)) lr.push(`<div onclick="locDetail('${esc(l.id)}')"><b class="mono">${esc(L(l.id))}</b> · emplacement ${used(bl,l.id)}/${cap(l)} palette(s)</div>`);
+  box.innerHTML = [...lr,...res].slice(0,30).join("") || `<div class="muted">Aucun résultat</div>`; box.style.display="block"; });
+document.addEventListener("click",e=>{ if(!e.target.closest(".search")) $("#qres").style.display="none"; });
+
+/* ============ OUTILS ============ */
+function modal(title, body, actions){
+  const ov=document.createElement("div"); ov.className="ov";
+  ov.innerHTML=`<div class="modal"><h3>${title}</h3>${body}<div class="acts">${actions.map((a,i)=>`<button data-i="${i}" class="${a[1]||""}" ${a[3]?"disabled":""}>${a[0]}</button>`).join("")}</div></div>`;
+  const close=()=>ov.remove();
+  ov.addEventListener("click",async e=>{ if(e.target===ov) return close(); const b=e.target.closest("button[data-i]"); if(!b) return; const a=actions[+b.dataset.i];
+    if(a[2]){ b.disabled=true; let r; try{ r=await a[2](); }catch(err){ r=false; } b.disabled=false; if(r===false) return; } close(); });
+  document.body.appendChild(ov);
+}
+function copyText(t,msg){ (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(msg||"Copié."),()=>{ modal("Copier",`<textarea style="width:100%;height:240px" class="mono">${esc(t)}</textarea><p class="muted">Sélectionnez le texte et copiez-le (Ctrl+C).</p>`,[["Fermer","pri"]]); }); }
+function copyCsv(kind){
+  const q=v=>`"${String(v??"").replace(/"/g,'""')}"`; let rows;
+  if(kind==="stock") rows=[["Emplacement","Code produit","Palettes","DLC","Mois restants"],...lines().sort(fefo).map(x=>[L(x.loc),x.product,qty(x),fmtD(x.dlc),dlcM(x.dlc)?monthsLeft(x.dlc):""])];
+  else rows=[["Date","Type","Code produit","Palettes","DLC","De","Vers","Référence","Opérateur"],...Object.values(S.movements).sort((a,b)=>b.ts-a.ts).map(m=>[new Date(m.ts).toISOString(),m.type,m.product,mq(m),fmtD(m.dlc),L(m.from),L(m.to),m.ref,m.op])];
+  copyText(rows.map(r=>r.map(q).join(";")).join("\n"),"CSV copié : collez-le dans Excel.");
+}
+async function loadDemo(){
+  if(Object.keys(S.products).length||Object.keys(S.locations).length) return toast("Le dépôt contient déjà des données.",true);
+  toast("Chargement des données de démonstration…");
+  const prods=["EAU-PL-150","EAU-GAZ-150","EAU-PL-050","EAU-CIT-100"];
+  try{
+    for(const code of prods) await backend.put("products",safeId(code),{code,name:"",format:"",perPallet:""});
+    const locIds=[]; for(const a of ["A","B","C"]) for(let p=1;p<=10;p++){ const id=`${a}-${String(p).padStart(2,"0")}`; locIds.push(id); await backend.put("locations",id,{aisle:a,pos:p,level:0,cap:6}); }
+    const offs=[-1,0,1,2,4,6,9,14]; let i=0;
+    for(const id of locIds){ if(Math.random()<.4) continue; let room=6;
+      const nl=1+Math.floor(Math.random()*3);
+      for(let j=0;j<nl && room>0;j++){ const k=1+Math.floor(Math.random()*Math.min(3,room)); room-=k; const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+offs[(i*5+3)%offs.length]);
+        await addQty(id, prods[(i+j)%4], `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, k); i++; } }
+    toast("Données de démonstration chargées.");
+  }catch(e){}
+}
+
+route(); init();
+</script>
+</body>
+</html>
