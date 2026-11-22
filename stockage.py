@@ -4,6 +4,7 @@ Google Drive. Une copie est gardée sur le PC (data/stock.json) quand l'applicat
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import drive
@@ -48,8 +49,18 @@ def enregistrer(d: dict) -> None:
         LOCAL.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+# Un seul enregistrement à la fois sur le serveur, tous utilisateurs confondus : sinon deux
+# enregistrements simultanés liraient la même version et le second effacerait le premier.
+_VERROU = threading.Lock()
+
+
 def appliquer(ops: list[dict]) -> dict:
     """Relit Drive (pour garder les changements faits ailleurs), applique les opérations, enregistre."""
+    with _VERROU:
+        return _appliquer(ops)
+
+
+def _appliquer(ops: list[dict]) -> dict:
     d = charger()
     for o in ops:
         if "settings" in o:
@@ -60,6 +71,16 @@ def appliquer(ops: list[dict]) -> dict:
             continue
         if o.get("del"):
             d[c].pop(i, None)
+        elif o.get("inc") is not None:  # changement relatif : part de la quantité réellement enregistrée
+            try:
+                actuel = max(0, int((d[c].get(i) or {}).get("qty") or 0))
+                nq = actuel + int(o["inc"])
+            except (TypeError, ValueError):
+                continue
+            if nq <= 0:
+                d[c].pop(i, None)
+            else:
+                d[c][i] = {**(o.get("base") or {}), "id": i, "qty": nq}
         else:
             d[c][i] = {**(o.get("data") or {}), "id": i}
     enregistrer(d)
