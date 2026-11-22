@@ -50,7 +50,7 @@ st.markdown(
     header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], footer {display:none !important}
     .block-container, [data-testid="stMainBlockContainer"] {padding:0 !important; max-width:100% !important}
     [data-testid="stAppViewContainer"] {overflow:hidden}
-    iframe {height:100vh !important; display:block; border:0}
+    iframe {position:fixed !important; inset:0; width:100vw !important; height:100vh !important; height:100dvh !important; border:0; z-index:1000}
     </style>""",
     unsafe_allow_html=True,
 )

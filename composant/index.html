@@ -17,8 +17,10 @@
 html,body{margin:0;height:100%}
 body{font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--bg);font-size:14px}
 .mono{font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
-nav{background:var(--nav);color:#cfe0ee;padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+/* Streamlit interdit le défilement de son cadre : la page défile donc dans .app */
+html,body{overflow:hidden}
+.app{display:grid;grid-template-columns:220px 1fr;height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+nav{background:var(--nav);color:#cfe0ee;padding:18px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;box-sizing:border-box;z-index:5}
 nav .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;color:#fff;font-weight:700;font-size:15px;line-height:1.2}
 nav .brand svg{flex:none}
 nav a{display:flex;align-items:center;gap:10px;color:#cfe0ee;text-decoration:none;padding:9px 10px;border-radius:8px;font-weight:500}
@@ -121,7 +123,7 @@ table.compact button.sm{padding:1px 8px;font-size:12px}
 .steps{counter-reset:s;padding-left:0;list-style:none;margin:0}
 .steps li{padding:4px 0 4px 28px;position:relative}
 .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:4px;width:20px;height:20px;border-radius:50%;background:var(--accent2);color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
-@media (max-width:760px){.app{grid-template-columns:1fr} nav{flex-direction:row;overflow-x:auto;padding:8px} nav .brand,nav .sp,nav .mode{display:none} nav a{white-space:nowrap} main{padding:16px} .search input{width:100%}}
+@media (max-width:760px){.app{display:block} nav{flex-direction:row;overflow-x:auto;padding:8px;height:auto} nav .brand,nav .sp,nav .mode{display:none} nav a{white-space:nowrap} main{padding:16px} .search input{width:100%}}
 </style>
 </head>
 <body>
@@ -350,7 +352,7 @@ function doRender(){
 }
 const ro = () => canWrite ? "" : "disabled";
 /* Les tableaux marqués "fill-h" s'étirent jusqu'au bas de la fenêtre */
-function fitHeights(){ document.querySelectorAll(".fill-h").forEach(el=>{ const top=el.getBoundingClientRect().top+window.scrollY; el.style.maxHeight=Math.max(260, window.innerHeight-top-40-24)+"px"; }); }
+function fitHeights(){ document.querySelectorAll(".fill-h").forEach(el=>{ const top=el.getBoundingClientRect().top+($(".app")?.scrollTop||0); el.style.maxHeight=Math.max(260, window.innerHeight-top-40-24)+"px"; }); }
 window.addEventListener("resize", ()=>fitHeights());
 
 /* ============ TABLEAU DE BORD ============ */
