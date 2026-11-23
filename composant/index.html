@@ -218,6 +218,17 @@ const LX = x => esc(L(x.loc)) + rowTag(x);
 /* Ligne qui reçoit une entrée sans ligne précisée : la dernière ligne non complète, sinon une nouvelle */
 const openRow = (loc,product,dlc) => { const xs=sameLines(loc,product,dlc); if(!xs.length) return 1;
   const open=xs.filter(y=>!isFull(y)); return open.length ? Math.max(...open.map(rowOf)) : Math.max(...xs.map(rowOf))+1; };
+/* Info libre sur une ligne de stock, sans blocage */
+const infoTag = (x,full) => x?.info ? ` <span class="tag" title="${esc(x.info)}" style="background:#e3efff;color:#163a66;font-family:inherit;vertical-align:middle;${full?"white-space:normal":"max-width:220px;overflow:hidden;text-overflow:ellipsis"}">ℹ ${esc(x.info)}</span>` : "";
+async function setInfo(id,txt){ const x=S.stock[id]; txt=String(txt||"").trim(); if(!x || (x.info||"")===txt) return;
+  if(backend.patch) return backend.patch("stock",id,{info:txt});
+  await backend.put("stock",id,{...x,info:txt}); }
+function infoModal(ids){ ids=ids.filter(id=>S.stock[id]); if(!ids.length) return; const one=ids.length===1?S.stock[ids[0]]:null;
+  modal(one?`ℹ Info · ${esc(one.product)} · ${esc(L(one.loc))}`:`ℹ Info sur ${ids.length} ligne(s)`,`<p class="muted" style="margin-top:0">Texte libre affiché à côté de la ligne dans le stock. Les palettes restent disponibles (aucun blocage). Laissez vide pour effacer l'info.</p>
+    <div class="f"><label>Info</label><input id="in_t" maxlength="120" value="${esc(one?one.info||"":"")}" placeholder="ex. à contrôler, réservé client X, palette abîmée…"></div>`,
+  [["Annuler"],["Enregistrer","pri",async()=>{ const t=$("#in_t").value.trim(); for(const id of ids) await setInfo(id,t); ui.stockSel.clear();
+    toast(t?`Info enregistrée sur ${ids.length} ligne(s).`:`Info effacée sur ${ids.length} ligne(s).`); render(); }, !canWrite]]);
+  setTimeout(()=>{ const i=$("#in_t"); if(i){ i.focus(); i.select(); } },30); }
 async function setFull(id,v){ const x=S.stock[id]; if(!x || isFull(x)===!!v) return;
   if(backend.patch) return backend.patch("stock",id,{full:!!v});
   await backend.put("stock",id,{...x,full:!!v}); }
@@ -389,8 +400,13 @@ function doRender(){
   const active = document.activeElement; const keepId = active && active.id && $("#view").contains(active) ? active.id : null; const selStart = keepId && active.selectionStart;
   if (!loaded && !backend){ $("#view").innerHTML = `<div class="empty">Chargement…</div>`; return; }
   if (backend===fileBackend && !FS.name){ $("#view").innerHTML = vFileStart(); return; }
+  /* Garder la position de défilement des listes (et de la page) quand l'écran est redessiné */
+  const sameView = doRender._v===ui.view; doRender._v=ui.view;
+  const keepScroll = sameView ? [...$("#view").querySelectorAll(".scroll")].map(el=>[el.scrollTop,el.scrollLeft]) : [];
+  const appEl = $(".app"), appTop = appEl ? appEl.scrollTop : 0;
   $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,mail:vMail,donnees:vData})[ui.view]();
   fitHeights();
+  if (sameView){ $("#view").querySelectorAll(".scroll").forEach((el,i)=>{ const s=keepScroll[i]; if(s){ el.scrollTop=s[0]; el.scrollLeft=s[1]; } }); if(appEl) appEl.scrollTop=appTop; }
   if (keepId){ const el=document.getElementById(keepId); if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selStart);}catch(e){} } }
 }
 const ro = () => canWrite ? "" : "disabled";
@@ -475,7 +491,7 @@ function vStock(){
   let ls = lines().sort(stockCmp);
   if (f.p) ls = ls.filter(x=>x.product===f.p);
   if (f.st==="blocked") ls = ls.filter(isBlocked); else if (f.st==="alert") ls = ls.filter(x=>status(x)!=="ok"); else if (f.st) ls = ls.filter(x=>status(x)===f.st);
-  if (q) ls = ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
+  if (q) ls = ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc),x.info||""].join(" ").toLowerCase().includes(q));
   const groups = {}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (groups[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0,b:0}); groups[k].n+=qty(x); if(isBlocked(x)) groups[k].b+=qty(x); });
   const gl = Object.values(groups).sort((a,b)=>a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)));
   return `<div class="card"><div class="row">
@@ -494,8 +510,8 @@ function vStock(){
   <div class="card"><h2><span class="x">Stock par emplacement <span class="muted" style="font-weight:400">(${ls.length} lignes)</span></span><select onchange="ui.stockSort={k:this.value,dir:1};render()" style="font-size:12.5px;padding:4px 8px">${[["product","Trier : produit, dépôt, DLC"],["dlc","Trier : DLC, produit, emplacement"],["loc","Trier : emplacement, produit, DLC"]].map(([v,t])=>`<option value="${v}" ${ui.stockSort.k===v?"selected":""}>${t}</option>`).join("")}${ui.stockSort.k==="qty"?`<option value="qty" selected>Trier : palettes</option>`:""}</select></h2>
     ${(()=>{ const sel=ui.stockSel; for(const id of [...sel]) if(!S.stock[id]) sel.delete(id); if(!sel.size) return "";
       return `<div class="row" style="gap:8px;align-items:center;margin:-4px 0 10px;padding:8px 10px;background:#fff7b3;border-radius:8px;flex-wrap:wrap"><b>${sel.size} ligne(s) sélectionnée(s)</b>
-        <button class="sm pri" onclick="selFull(true)" ${ro()}>✔ Marquer complètes</button><button class="sm" onclick="selFull(false)" ${ro()}>Retirer « complet »</button><button class="sm" onclick="ui.stockSel.clear();render()">Désélectionner</button></div>`; })()}
-    ${ls.length?`<div class="scroll fill-h"><table class="compact"><tr><th style="width:26px"><input type="checkbox" title="Tout sélectionner" ${ls.every(x=>ui.stockSel.has(x.id))?"checked":""} onclick="selAll(this.checked)"></th>${sortTh("product","Produit")}${sortTh("qty","Palettes","num")}${sortTh("dlc","DLC")}${sortTh("loc","Emplacement")}<th>Reste</th></tr>${ls.map((x,i)=>`<tr class="click deprow${ui.stockSort.k==="product"&&i&&ls[i-1].product!==x.product?" prod-sep":""}" style="${depotBg(x.loc)?`background:${depotBg(x.loc)}`:""}" onclick="lineDetail('${esc(x.id)}')"><td onclick="event.stopPropagation()"><input type="checkbox" ${ui.stockSel.has(x.id)?"checked":""} onclick="selLine('${esc(x.id)}',this.checked)"></td><td class="mono" style="white-space:nowrap">${esc(x.product)}</td><td class="num"${isFull(x)?"":` style="background:#fff7b3"`}><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td class="mono" style="white-space:nowrap">${LX(x)}</td><td style="white-space:nowrap">${stTag(x)} ${blkTag(x)}</td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun stock.</div>`}
+        <button class="sm pri" onclick="selFull(true)" ${ro()}>✔ Marquer complètes</button><button class="sm" onclick="selFull(false)" ${ro()}>Retirer « complet »</button><button class="sm" onclick="infoModal([...ui.stockSel])" ${ro()}>ℹ Info</button><button class="sm danger" onclick="selBlock()" ${ro()}>🔒 Bloquer</button><button class="sm" onclick="selUnblock()" ${ro()}>🔓 Débloquer</button><button class="sm" onclick="ui.stockSel.clear();render()">Désélectionner</button></div>`; })()}
+    ${ls.length?`<div class="scroll fill-h"><table class="compact"><tr><th style="width:26px"><input type="checkbox" title="Tout sélectionner" ${ls.every(x=>ui.stockSel.has(x.id))?"checked":""} onclick="selAll(this.checked)"></th>${sortTh("product","Produit")}${sortTh("qty","Palettes","num")}${sortTh("dlc","DLC")}${sortTh("loc","Emplacement")}<th>Reste</th></tr>${ls.map((x,i)=>`<tr class="click deprow${ui.stockSort.k==="product"&&i&&ls[i-1].product!==x.product?" prod-sep":""}" style="${depotBg(x.loc)?`background:${depotBg(x.loc)}`:""}" onclick="lineDetail('${esc(x.id)}')"><td onclick="event.stopPropagation()"><input type="checkbox" ${ui.stockSel.has(x.id)?"checked":""} onclick="selLine('${esc(x.id)}',this.checked)"></td><td class="mono" style="white-space:nowrap">${esc(x.product)}</td><td class="num"${isFull(x)?"":` style="background:#fff7b3"`}><b>${qty(x)}</b></td><td>${DL(x.product,x.dlc)}</td><td class="mono" style="white-space:nowrap">${LX(x)}</td><td style="white-space:nowrap">${stTag(x)} ${blkTag(x)}${infoTag(x)}</td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun stock.</div>`}
   </div>
   <div class="card"><h2>Total par produit et DLC <span class="muted" style="font-weight:400">(${sumQ(ls)} palettes)</span></h2><p class="muted" style="margin:-6px 0 10px;font-size:12.5px">Cliquez sur un produit pour sortir des palettes, ou sur « + Ajouter » pour en ajouter.</p>
     ${gl.length?`<div class="scroll fill-h"><table class="compact"><tr><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Reste</th><th></th></tr>${gl.map((g,i)=>`<tr class="click${i&&gl[i-1].product!==g.product?" prod-sep":""}" title="Cliquer pour sortir des palettes" onclick="outProd('${esc(g.product)}','${g.dlc}')"><td class="mono" style="white-space:nowrap">${esc(g.product)}</td><td class="num"><b>${g.n}</b></td><td>${DL(g.product,g.dlc)}</td><td style="white-space:nowrap">${stTag(g)}${g.b?` <span class="tag t-bad" title="Palettes bloquées (quarantaine, labo…)">🔒 ${g.b}</span>`:""}</td><td style="white-space:nowrap;text-align:right"><button class="sm danger" onclick="event.stopPropagation();outProd('${esc(g.product)}','${g.dlc}')" ${ro()}>− Sortir</button> <button class="sm" onclick="event.stopPropagation();addProd('${esc(g.product)}','${g.dlc}')" ${ro()}>+ Ajouter</button></td></tr>`).join("")}</table></div>`:`<div class="empty">Aucun résultat.</div>`}
@@ -507,6 +523,27 @@ function selAll(on){ const ls=stockView(); ls.forEach(x=>on?ui.stockSel.add(x.id
 async function selFull(v){ const ids=[...ui.stockSel].filter(id=>S.stock[id]); let n=0;
   for(const id of ids){ if(isFull(S.stock[id])!==v){ await setFull(id,v); n++; } }
   ui.stockSel.clear(); toast(v?`${n} ligne(s) marquée(s) complète(s).`:`« complet » retiré sur ${n} ligne(s).`); render(); }
+/* Blocage / déblocage des lignes sélectionnées. Un blocage vaut pour un produit dans un emplacement (toutes DLC). */
+function selPairs(){ const m={}; for(const id of ui.stockSel){ const x=S.stock[id]; if(x) m[blkId(x.loc,x.product)]=x; } return Object.values(m); }
+function selBlock(){ const ps=selPairs(), todo=ps.filter(x=>!blockOf(x)); if(!ps.length) return;
+  if(!todo.length) return toast("Toutes les lignes sélectionnées sont déjà bloquées.",true);
+  const n=todo.reduce((s,x)=>s+sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product)),0);
+  modal(`🔒 Bloquer ${todo.length} produit(s) / emplacement(s)`,`<p class="muted" style="margin-top:0">${todo.map(x=>`<span class="mono">${esc(x.product)}</span> dans <span class="mono">${esc(L(x.loc))}</span>`).join(", ")}.<br>Soit <b>${n}</b> palette(s), toutes DLC de ces produits dans ces emplacements.${ps.length>todo.length?` ${ps.length-todo.length} déjà bloqué(s) : inchangé(s).`:""}</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="f"><label>Motif * (choisissez ou tapez le vôtre)</label><input id="bk_r" list="bk_list" value="" placeholder="ex. Quarantaine, Bloqué par le labo…" autocomplete="off"><datalist id="bk_list">${BLK_REASONS.map(r=>`<option value="${r}">`).join("")}</datalist></div>
+    <div class="f"><label>Info supplémentaire (affichée à côté de « Bloqué »)</label><input id="bk_n" maxlength="120" placeholder="ex. analyse n° 123, attente résultat labo, lot 4587…"></div></div>`,
+  [["Annuler"],["Bloquer","danger",async()=>{ const reason=$("#bk_r").value.trim(), note=$("#bk_n").value.trim();
+    if(!reason){ toast("Indiquez un motif.",true); return false; }
+    for(const x of todo){ if(blockOf(x)) continue; const q=sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product));
+      await backend.put("blocks",blkId(x.loc,x.product),{loc:x.loc,product:x.product,reason,note,ts:Date.now(),op:opName||""});
+      await logMove({type:"BLOCAGE",product:x.product,dlc:"",qty:q,from:x.loc,to:"",ref:reason+(note?" · "+note:"")}); }
+    ui.stockSel.clear(); toast(`${todo.length} blocage(s) enregistré(s) (${reason}).`); }, !canWrite]]);
+  setTimeout(()=>$("#bk_r")?.focus(),30); }
+function selUnblock(){ const todo=selPairs().filter(x=>blockOf(x)); if(!todo.length) return toast("Aucune des lignes sélectionnées n'est bloquée.",true);
+  modal(`🔓 Débloquer ${todo.length} produit(s) / emplacement(s)`,`<p style="margin-top:0">${todo.map(x=>{ const b=blockOf(x); return `<span class="mono">${esc(x.product)}</span> dans <span class="mono">${esc(L(x.loc))}</span> <span class="muted">(${esc(blkText(b)||"bloqué")})</span>`; }).join("<br>")}</p><p>Ces palettes redeviennent disponibles pour les sorties et commandes.</p>`,
+  [["Annuler"],["Débloquer","pri",async()=>{ for(const x of todo){ const b=blockOf(x); if(!b) continue; const q=sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product));
+      await backend.del("blocks",blkId(x.loc,x.product)); await logMove({type:"DEBLOCAGE",product:x.product,dlc:"",qty:q,from:x.loc,to:"",ref:b.reason||""}); }
+    ui.stockSel.clear(); toast(`${todo.length} déblocage(s) enregistré(s).`); }, !canWrite]]); }
 /* Tri du stock par emplacement : par défaut produit → dépôt → DLC → emplacement */
 function stockCmp(a,b){ const {k,dir}=ui.stockSort;
   const P=(a.product||"").localeCompare(b.product||""), D=dkey(a.dlc).localeCompare(dkey(b.dlc)), E=locSort(locOf(a.loc),locOf(b.loc)), Q=qty(a)-qty(b);
@@ -978,10 +1015,11 @@ function lineDetail(id){ const x=S.stock[id]; if(!x||!qty(x)) return; const pr=S
     <div>Emplacement</div><div class="mono">${LX(x)}${multiRow(x)?` <span class="muted" style="font-family:inherit;font-size:12px">(${sumQ(sameLines(x.loc,x.product,x.dlc))} pal. sur ${sameLines(x.loc,x.product,x.dlc).length} lignes, même DLC)</span>`:""}</div>
     <div>DLC</div><div>${DL(x.product,x.dlc)} ${stTag(x)}</div>
     <div>Quantité</div><div><b>${qty(x)}</b> palette(s)</div>
+    ${x.info?`<div>Info</div><div>${infoTag(x,true)} <button class="sm" onclick="this.closest('.ov').remove();infoModal(['${esc(id)}'])" ${ro()}>✎ Modifier</button></div>`:""}
     ${(b=>b?`<div>Blocage</div><div>${blkTag(x,true)} <button class="sm" onclick="this.closest('.ov').remove();blockLine('${esc(id)}')" ${ro()}>✎ Modifier le motif</button><br><span class="muted" style="font-size:12px">depuis le ${fmtTs(b.ts)}${b.op?" · "+esc(b.op):""} — toutes les DLC de ce produit dans cet emplacement</span></div>`:"")(blockOf(x))}</div>
     ${isBlocked(x)?`<div class="banner" style="margin:12px 0 0">Ces palettes ne peuvent pas sortir ni être transférées, et ne sont pas proposées dans les sorties et commandes. Débloquez-les d'abord.</div>`:""}
     ${hist.length?`<h4 style="margin:16px 0 6px">Derniers mouvements</h4>${hist.map(m=>`<div style="font-size:12.5px">${fmtTs(m.ts)} · ${(MV[m.type]||[m.type])[0]} ${mq(m)} pal. ${m.from?esc(L(m.from))+" → ":""}${esc(L(m.to))} ${m.op?"· "+esc(m.op):""}</div>`).join("")}`:""}`,
-  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["+ Nouvelle ligne","",()=>{ setTimeout(()=>addNewRow(id),10); }, !canWrite],
+  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["+ Nouvelle ligne","",()=>{ setTimeout(()=>addNewRow(id),10); }, !canWrite],["ℹ Info","",()=>{ setTimeout(()=>infoModal([id]),10); }, !canWrite],
    isFull(x)?["Retirer « complet »","",async()=>{ await setFull(id,false); toast(`${L(x.loc)} : ligne marquée non complète.`); }, !canWrite]:["✔ Ligne complète","",async()=>{ await setFull(id,true); toast(`${L(x.loc)} : ligne marquée complète.`); }, !canWrite],["+ Nouvel emplacement","",()=>{ setTimeout(()=>addToNewLoc(id),10); }, !canWrite],
    isBlocked(x)?["🔓 Débloquer","",()=>{ setTimeout(()=>unblockLine(id),10); }, !canWrite]:["🔒 Bloquer","",()=>{ setTimeout(()=>blockLine(id),10); }, !canWrite],
    ["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite||isBlocked(x)],[status(x)==="bad"?"Mettre au rebut":"Sortir","danger",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite||isBlocked(x)],["Fermer","pri"]]); }
@@ -990,7 +1028,7 @@ const BLK_REASONS = ["Quarantaine","Bloqué par le labo","Contrôle qualité","L
 function blockLine(id){ const x=S.stock[id]; if(!x) return; const n=sumQ(lines().filter(y=>y.loc===x.loc&&y.product===x.product)), b=blockOf(x);
   modal(`🔒 ${b?"Modifier le blocage de":"Bloquer"} ${esc(x.product)} dans ${esc(L(x.loc))}`,`<p class="muted" style="margin-top:0">${b?`Bloqué depuis le ${fmtTs(b.ts)}.`:`Les <b>${n}</b> palette(s) de ce produit dans cet emplacement (toutes DLC, y compris celles ajoutées plus tard) ne pourront plus sortir ni être transférées, et ne seront plus proposées dans les sorties et commandes.`}</p>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:10px">
-    <div class="f"><label>Motif * (choisissez ou tapez le vôtre)</label><input id="bk_r" list="bk_list" value="${esc(b?b.reason:BLK_REASONS[0])}" autocomplete="off"><datalist id="bk_list">${BLK_REASONS.map(r=>`<option value="${r}">`).join("")}</datalist></div>
+    <div class="f"><label>Motif * (choisissez ou tapez le vôtre)</label><input id="bk_r" list="bk_list" value="${esc(b?b.reason:"")}" placeholder="ex. Quarantaine, Bloqué par le labo…" autocomplete="off"><datalist id="bk_list">${BLK_REASONS.map(r=>`<option value="${r}">`).join("")}</datalist></div>
     <div class="f"><label>Info supplémentaire (affichée à côté de « Bloqué »)</label><input id="bk_n" value="${esc(b?b.note||"":"")}" maxlength="120" placeholder="ex. analyse n° 123, attente résultat labo, lot 4587…"></div></div>`,
   [["Annuler"],[b?"Enregistrer":"Bloquer",b?"pri":"danger",async()=>{ const reason=$("#bk_r").value.trim(), note=$("#bk_n").value.trim();
     if(!reason){ toast("Indiquez un motif.",true); return false; }
@@ -1205,7 +1243,7 @@ function addSum(){ let t=0; document.querySelectorAll(".ap_q").forEach(i=>{ t+=M
 function stockView(){ const f=ui.stockFilter, q=f.q.toLowerCase(); let ls=lines().sort(stockCmp);
   if (f.p) ls=ls.filter(x=>x.product===f.p);
   if (f.st==="blocked") ls=ls.filter(isBlocked); else if (f.st==="alert") ls=ls.filter(x=>status(x)!=="ok"); else if (f.st) ls=ls.filter(x=>status(x)===f.st);
-  if (q) ls=ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc)].join(" ").toLowerCase().includes(q));
+  if (q) ls=ls.filter(x=>[x.loc,L(x.loc),x.product,prodName(x.product),fmtD(x.dlc),x.info||""].join(" ").toLowerCase().includes(q));
   return ls; }
 function buildXlsx(sheets){
   const enc=new TextEncoder(), X=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"");
@@ -1253,13 +1291,13 @@ const fullStock = () => lines().sort((a,b)=>(a.product||"").localeCompare(b.prod
 function stockWorkbook(ls=stockView(), byProd=ui.stockSort.k==="product"){
   const G="2E9D5B", R="C9372C";
   const rows1=ls.map((x,i)=>{ const bg=(depotBg(x.loc)||"").replace("#","").toUpperCase()||undefined, sep=byProd&&i>0&&ls[i-1].product!==x.product, base={bg,sep};
-    return [{v:x.product,s:base},{v:qty(x),s:{...base,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{...base,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:locOf(x.loc).aisle||"",s:base},{v:L(x.loc)+rowTxt(x),s:base},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{...base,right:true}}]; });
+    return [{v:x.product,s:base},{v:qty(x),s:{...base,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{...base,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:locOf(x.loc).aisle||"",s:base},{v:L(x.loc)+rowTxt(x),s:base},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{...base,right:true}},{v:x.info||"",s:base}]; });
   const g={}; ls.forEach(x=>{ const k=x.product+"|"+dlcM(x.dlc); (g[k] ||= {product:x.product,dlc:dlcM(x.dlc),n:0}); g[k].n+=qty(x); });
   const gl=Object.values(g).sort((a,b)=>a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)));
   const rows2=gl.map((x,i)=>{ const sep=i>0&&gl[i-1].product!==x.product; return [{v:x.product,s:{sep}},{v:x.n,s:{sep,right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):"",s:{sep,b:true,color:{"dlc-g":G,"dlc-r":R}[dlcCls(x.product,x.dlc)]||"5F6F80"}},{v:dlcM(x.dlc)?monthsLeft(x.dlc):"",s:{sep,right:true}}]; });
   rows2.push([{v:"TOTAL",s:{b:true,sep:true}},{v:sumQ(ls),s:{b:true,sep:true,right:true}},{v:"",s:{sep:true}},{v:"",s:{sep:true}}]);
   return buildXlsx([
-    {name:"Stock par emplacement", head:["Produit","Palettes","DLC","Dépôt","Emplacement","Mois restants"], widths:[16,10,9,8,13,14], rows:rows1},
+    {name:"Stock par emplacement", head:["Produit","Palettes","DLC","Dépôt","Emplacement","Mois restants","Info"], widths:[16,10,9,8,18,14,30], rows:rows1},
     {name:"Total produit DLC", head:["Produit","Palettes","DLC","Mois restants"], widths:[16,10,9,14], rows:rows2} ]);
 }
 async function exportExcel(){
@@ -1454,12 +1492,12 @@ function buildDataWorkbook(){
   const h={b:true}, str=v=>({v:v==null?"":String(v)}), num=v=>({v:Number(v)||0,s:{right:true}});
   const locs=Object.values(S.locations).sort(locSort);
   const stock=lines().sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc))||a.product.localeCompare(b.product)||dkey(a.dlc).localeCompare(dkey(b.dlc)))
-    .map(x=>[str(L(x.loc)),str(x.product),num(qty(x)),str(dlcM(x.dlc)?fmtD(x.dlc):""),rowOf(x)>1?num(rowOf(x)):str(""),str(isFull(x)?"oui":"")]);
+    .map(x=>[str(L(x.loc)),str(x.product),num(qty(x)),str(dlcM(x.dlc)?fmtD(x.dlc):""),rowOf(x)>1?num(rowOf(x)):str(""),str(isFull(x)?"oui":""),str(x.info||"")]);
   const prods=Object.values(S.products).sort((a,b)=>a.code.localeCompare(b.code)).map(p=>[str(p.code),str(p.name||""),str(p.format||""),p.perPallet?num(p.perPallet):str("")]);
   const lrows=locs.map(l=>[str(L(l.id)),str(l.aisle),num(l.pos),num(cap(l)),str(l.id)]);
   const mv=Object.values(S.movements).sort((a,b)=>a.ts-b.ts).map(m=>[str(new Date(m.ts).toISOString()),str(m.type),str(m.product),num(mq(m)),str(dlcM(m.dlc)?fmtD(m.dlc):""),str(m.from?L(m.from):""),str(m.to?L(m.to):""),str(m.ref||""),str(m.op||"")]);
   return buildXlsx([
-    {name:"Stock",head:["Emplacement","Produit","Palettes","DLC (MM/AA)","Ligne","Complet"],widths:[14,16,10,12,8,9],rows:stock},
+    {name:"Stock",head:["Emplacement","Produit","Palettes","DLC (MM/AA)","Ligne","Complet","Info"],widths:[14,16,10,12,8,9,30],rows:stock},
     {name:"Produits",head:["Code produit","Désignation","Format","Colis/palette"],widths:[16,28,18,13],rows:prods},
     {name:"Emplacements",head:["Emplacement","Dépôt","Position","Capacité","Id interne"],widths:[14,8,10,10,14],rows:lrows},
     {name:"Mouvements",head:["Date","Type","Produit","Palettes","DLC","De","Vers","Référence","Opérateur"],widths:[22,11,16,10,8,10,10,24,14],rows:mv},
@@ -1484,7 +1522,7 @@ async function loadDataWorkbook(buf){
   (get("Stock")||[]).forEach(r=>{ if(blank(r)) return; const loc=locIdOf(r[0]), code=String(r[1]??"").trim().toUpperCase(), n=parseInt(r[2]); const e=r[3]==null||String(r[3]).trim()===""; const d=e?"":parseDlcCell(r[3]);
     if(!loc||!code||!(n>0)||d===null){ bad++; return; }
     if(!P[safeId(code)]) P[safeId(code)]={id:safeId(code),code,name:"",format:"",perPallet:""};
-    const rw=Math.max(1,parseInt(r[4])||1), id=lineId(loc,code,d,rw); St[id]={id,loc,product:code,dlc:d,...(rw>1?{row:rw}:{}),...(/^(oui|x|1|true|complet)$/i.test(String(r[5]??"").trim())?{full:true}:{}),qty:(St[id]?St[id].qty:0)+n}; });
+    const rw=Math.max(1,parseInt(r[4])||1), id=lineId(loc,code,d,rw); St[id]={id,loc,product:code,dlc:d,...(rw>1?{row:rw}:{}),...(/^(oui|x|1|true|complet)$/i.test(String(r[5]??"").trim())?{full:true}:{}),...(String(r[6]??"").trim()?{info:String(r[6]).trim().slice(0,120)}:{}),qty:(St[id]?St[id].qty:0)+n}; });
   // capacité au moins égale au contenu
   const use={}; Object.values(St).forEach(x=>use[x.loc]=(use[x.loc]||0)+x.qty); for(const [id,u] of Object.entries(use)) if(Lc[id] && Lc[id].cap<u) Lc[id].cap=u;
   (get("Mouvements")||[]).forEach((r,i)=>{ if(blank(r)) return; const ts=Date.parse(r[0])||(typeof r[0]==="number"?Math.round((r[0]-25569)*86400000):0); if(!ts) return;
@@ -1576,6 +1614,14 @@ function modal(title, body, actions){
   const close=()=>ov.remove();
   ov.addEventListener("click",async e=>{ if(e.target===ov) return close(); const b=e.target.closest("button[data-i]"); if(!b) return; const a=actions[+b.dataset.i];
     if(a[2]){ b.disabled=true; let r; try{ r=await a[2](); }catch(err){ r=false; } b.disabled=false; if(r===false) return; } close(); });
+  /* Entrée dans un champ de la fenêtre = bouton de confirmation (le dernier bouton principal qui agit) */
+  ov.addEventListener("keydown",e=>{ if(e.key!=="Enter" || e.isComposing || e.shiftKey) return; const t=e.target;
+    if(!t.matches || !t.matches("input:not([type=checkbox]):not([type=radio]):not([type=file]),select")) return;
+    e.preventDefault(); t.blur(); if(!ov.isConnected) return; // valide d'abord la saisie (événements « change »)
+    let i=-1; actions.forEach((a,k)=>{ if(a[2] && !a[3] && /\b(pri|danger)\b/.test(a[1]||"")) i=k; });
+    if(i<0) actions.forEach((a,k)=>{ if(a[2] && !a[3]) i=k; });
+    const b=i>=0 && ov.querySelector(`.acts button[data-i="${i}"]`); if(!b || b.disabled) return;
+    e.preventDefault(); b.click(); });
   document.body.appendChild(ov);
 }
 function copyText(t,msg){ (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(msg||"Copié."),()=>{ modal("Copier",`<textarea style="width:100%;height:240px" class="mono">${esc(t)}</textarea><p class="muted">Sélectionnez le texte et copiez-le (Ctrl+C).</p>`,[["Fermer","pri"]]); }); }
