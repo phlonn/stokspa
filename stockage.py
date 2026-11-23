@@ -71,6 +71,9 @@ def _appliquer(ops: list[dict]) -> dict:
             continue
         if o.get("del"):
             d[c].pop(i, None)
+        elif o.get("patch") is not None:  # change quelques champs (ex. « complet ») sans toucher la quantité
+            if i in d[c]:
+                d[c][i] = {**d[c][i], **(o["patch"] or {}), "id": i}
         elif o.get("inc") is not None:  # changement relatif : part de la quantité réellement enregistrée
             try:
                 actuel = max(0, int((d[c].get(i) or {}).get("qty") or 0))
@@ -80,7 +83,7 @@ def _appliquer(ops: list[dict]) -> dict:
             if nq <= 0:
                 d[c].pop(i, None)
             else:
-                d[c][i] = {**(o.get("base") or {}), "id": i, "qty": nq}
+                d[c][i] = {**(d[c].get(i) or {}), **(o.get("base") or {}), "id": i, "qty": nq}
         else:
             d[c][i] = {**(o.get("data") or {}), "id": i}
     enregistrer(d)
