@@ -394,9 +394,18 @@ async function migrateLegacy(){
 /* row non précisé : une entrée va sur la dernière ligne non complète de ce produit/DLC dans l'emplacement */
 /* Une entrée sur une ligne qui a une capacité max : on remplit la ligne jusqu'à son max (elle passe « complet »),
    le reste part sur de nouvelles lignes de même capacité. */
+let NOASK=false; // imports en masse : pas de question de capacité par ligne
 async function addQty(loc, product, dlc, delta, row){ _minD=null; _rowsM=null;
   if(row==null) row = delta>0 ? openRow(loc,product,dlc) : 1;
   const id=lineId(loc,product,dlc,row), cur=S.stock[id], mx=lineMax(cur);
+  /* Création d'une nouvelle ligne : on demande toujours sa capacité max */
+  if(delta>0 && !cur && !NOASK){
+    const m=await askNewMax(loc,product,dlc,delta);
+    if(m && delta>m){ await addRaw(loc,product,dlc,m,row); await setLineField(id,{max:m}); await setFull(id,true);
+      return addQty(loc,product,dlc,delta-m,row); } // le reste : « où placer le reste »
+    await addRaw(loc,product,dlc,delta,row);
+    if(m){ await setLineField(id,{max:m}); if(delta>=m) await setFull(id,true); }
+    return; }
   if(delta>0 && mx && qty(cur)+delta>mx){
     let rem=delta; const room=Math.max(0,mx-qty(cur));
     if(room>0){ await addRaw(loc,product,dlc,room,row); rem-=room; }
@@ -435,6 +444,20 @@ async function addRaw(loc, product, dlc, delta, row){ _minD=null; _rowsM=null;
 }
 const lineMax = x => Math.max(0, parseInt(x?.max) || 0);
 /* Fenêtre qui demande la capacité max de la nouvelle ligne créée par un débordement. Renvoie un nombre (0 = sans limite). */
+/* Capacité max demandée à la création d'une ligne. Proposée par défaut : la dernière capacité utilisée pour ce produit. */
+function askNewMax(loc,product,dlc,n){ return new Promise(res=>{
+  const prev=lines().filter(y=>y.product===product && lineMax(y)).sort((a,b)=>rowOf(b)-rowOf(a))[0], def=prev?lineMax(prev):"";
+  const ov=document.createElement("div"); ov.className="ov"; ov.style.zIndex="1000";
+  ov.innerHTML=`<div class="modal"><h3>Nouvelle ligne de ${esc(product)} dans ${esc(L(loc))}</h3>
+    <p class="muted" style="margin-top:0"><b>${n}</b> palette(s) · DLC ${fmtD(dlc)} vont sur une nouvelle ligne. Quelle est sa capacité max ?</p>
+    <div class="f" style="width:240px"><label>Capacité max de la ligne</label><input id="nm_v" type="number" min="1" value="${def}" placeholder="vide = pas de limite"></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">Quand la ligne atteint sa capacité max, elle passe « complet » et la suite part sur une autre ligne.</p>
+    <div class="acts"><button class="pri" id="nm_ok">Valider</button></div></div>`;
+  const done=()=>{ const raw=ov.querySelector("#nm_v").value.trim(), v=raw===""?0:parseInt(raw);
+    if(raw!=="" && !(v>=1)){ toast("Capacité invalide.",true); return; } ov.remove(); res(v||0); };
+  ov.querySelector("#nm_ok").onclick=done;
+  ov.querySelector("#nm_v").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); e.stopPropagation(); done(); } });
+  document.body.appendChild(ov); setTimeout(()=>{ const i=ov.querySelector("#nm_v"); i.focus(); i.select(); },30); }); }
 /* {id, aisle, pos, isNew} pour un code d'emplacement tapé (ex. D303), ou null s'il est illisible */
 function locFromCode(raw){ const v=String(raw||"").toUpperCase().replace(/\s+/g,""); if(!v) return null;
   const hit=Object.values(S.locations).find(l=>L(l.id).toUpperCase()===v||l.id.toUpperCase()===v); if(hit) return {id:hit.id,aisle:hit.aisle,pos:hit.pos,isNew:false};
@@ -1565,7 +1588,7 @@ async function impApply(){
     if(im.mode==="replace"){ for(const x of lines()){ await logMove({type:"SORTIE",product:x.product,dlc:dlcM(x.dlc),qty:qty(x),from:x.loc,to:"",ref:"Remplacement par import"}); await backend.del("stock",x.id); } }
     for(const o of pl.over){ const l=S.locations[o.id]; if(l && cap(l)<o.need) await backend.put("locations",o.id,{...l,cap:o.need}); }
     const agg={}; pl.ok.forEach(x=>{ const k=lineId(x.loc.id,x.code,x.dlc); (agg[k] ||= {loc:x.loc.id,product:x.code,dlc:x.dlc,n:0}).n+=x.n; });
-    let n=0; for(const a of Object.values(agg)){ await addQty(a.loc,a.product,a.dlc,a.n); await logMove({type:"ENTREE",product:a.product,dlc:a.dlc,qty:a.n,from:"",to:a.loc,ref}); n+=a.n; }
+    let n=0; NOASK=true; try{ for(const a of Object.values(agg)){ await addQty(a.loc,a.product,a.dlc,a.n); await logMove({type:"ENTREE",product:a.product,dlc:a.dlc,qty:a.n,from:"",to:a.loc,ref}); n+=a.n; } } finally { NOASK=false; }
     toast(`Import terminé : ${n} palette(s)${pl.newProds.length?`, ${pl.newProds.length} produit(s) créé(s)`:""}${pl.newLocs.length?`, ${pl.newLocs.length} emplacement(s) créé(s)`:""}.`);
   }catch(e){ return false; }
 }
@@ -1786,7 +1809,7 @@ async function loadDemo(){
     for(const id of locIds){ if(Math.random()<.4) continue; let room=6;
       const nl=1+Math.floor(Math.random()*3);
       for(let j=0;j<nl && room>0;j++){ const k=1+Math.floor(Math.random()*Math.min(3,room)); room-=k; const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+offs[(i*5+3)%offs.length]);
-        await addQty(id, prods[(i+j)%4], `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, k); i++; } }
+        NOASK=true; try{ await addQty(id, prods[(i+j)%4], `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, k); } finally { NOASK=false; } i++; } }
     toast("Données de démonstration chargées.");
   }catch(e){}
 }
