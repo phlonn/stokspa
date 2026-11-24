@@ -296,7 +296,10 @@ function applyOp(o){ if(o.settings) S.settings={...S.settings,...o.settings}; el
   else S[o.c][o.id]={...o.data,id:o.id}; }
 const stBackend = {
   async inc(c,id,delta,base){ stQueue({c,id,inc:delta,base}); },
-  async patch(c,id,p){ stQueue({c,id,patch:p}); },
+  /* Modification de quelques champs (complet, info, capacité de ligne) : envoyée comme un « +0 palette » qui porte
+     la ligne entière. Ainsi même un serveur qui ne connaît pas encore « patch » (ancien stockage.py) garde la ligne
+     et sa quantité, au lieu de la remplacer par une ligne vide. */
+  async patch(c,id,p){ const x=S[c][id]; if(!x) return; const {id:_i,qty:_q,...rest}=x; stQueue({c,id,inc:0,base:{...rest,...p}}); },
   async put(c,id,data){ stQueue({c,id,data:{...data,id}}); },
   async del(c,id){ stQueue({c,id,del:true}); },
   async setSettings(d){ stQueue({settings:d}); }
