@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gestion de dépôt – Palettes d'eau</title>
+<title>FabLog</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -117,7 +117,27 @@ td.desig{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellips
 .ov{position:fixed;inset:0;background:rgba(15,34,51,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .modal{background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
 .modal h3{margin:0 0 12px;font-size:17px}
+.modal h3.fefo-warn{color:#d00000;background:#ffe600;padding:6px 10px;border-radius:6px;font-weight:900;font-size:24px;animation:fefoBlink 1s steps(2,start) infinite}
+@keyframes fefoBlink{to{visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.modal h3.fefo-warn{animation:fefoPulse 1.2s ease-in-out infinite}}
+@keyframes fefoPulse{50%{opacity:.15}}
 .modal .acts{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:18px}
+.modal.side{max-width:780px}
+.modal.side .side-wrap{display:flex;gap:18px;align-items:stretch}
+.modal.side .side-body{flex:1;min-width:0}
+.modal.side .acts{flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;margin-top:0;width:230px;flex:none;border-left:1px solid #e3e8ee;padding-left:16px}
+.modal.side .acts button{width:100%;text-align:left}
+.modal.side .acts button.close{margin-top:auto;text-align:center}
+.modal .acts button.b-blue{background:#dbeafe;border-color:#b6d0f5;color:#123a63}
+.modal .acts button.b-red{background:#fde0e0;border-color:#f3b6b6}
+.modal .acts button.b-grey{background:#eceef1;border-color:#d5d9df;color:#2b3440}
+.modal .acts button.b-green{background:#16c60c;border-color:#12a40a;color:#fff;font-weight:700}
+.modal .acts button.b-blue:hover:not(:disabled){background:#c8defa}
+.modal .acts button.b-red:hover:not(:disabled){background:#fbcaca}
+.modal .acts button.b-grey:hover:not(:disabled){background:#e0e3e8}
+.modal .acts button.b-green:hover:not(:disabled){background:#12b00a}
+.modal .acts hr.asep{border:0;border-top:1px solid #e3e8ee;margin:2px 0;width:100%}
+@media (max-width:640px){ .modal.side .side-wrap{flex-direction:column} .modal.side .acts{width:auto;border-left:0;padding-left:0;border-top:1px solid #e3e8ee;padding-top:12px} }
 .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13.5px}
 .kv div:nth-child(odd){color:var(--muted)}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
@@ -134,7 +154,7 @@ td.desig{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellips
 <nav id="nav">
   <div class="brand">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.4 6 7.9 6 11a6 6 0 0 1-12 0c0-3.1 2.5-6.6 6-11z" fill="#3aa6e6"/><path d="M9.2 14.2a3 3 0 0 0 2.8 2.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <span>Dépôt<br><span style="font-weight:400;font-size:12px;color:#9fb8cc">Gestion palettes</span></span>
+    <span>FabLog<br><span style="font-weight:400;font-size:12px;color:#9fb8cc">Gestion palettes</span></span>
   </div>
   <a href="#accueil" data-v="accueil">▦ Tableau de bord</a>
   <a href="#plan" data-v="plan">▤ Plan du dépôt</a>
@@ -146,6 +166,7 @@ td.desig{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellips
   <a href="#parametres" data-v="parametres">⚙ Produits & emplacements</a>
   <a href="#mail" data-v="mail">✉ Envoyer le stock par mail</a>
   <a href="#donnees" data-v="donnees">🔒 Gestion des données</a>
+  <a href="#apropos" data-v="apropos">ⓘ À propos</a>
   <div class="sp"></div>
   <div class="mode" id="mode">Connexion…</div>
 </nav>
@@ -254,7 +275,12 @@ const minDlc = () => { if(!_minD){ _minD={}; for(const x of lines()){ const d=dl
 const dlcCls = (product,dlc) => !dlcM(dlc) ? "dlc-n" : dlcM(dlc)===minDlc()[product] ? "dlc-g" : "dlc-r";
 const DL = (product,dlc) => `<span class="${dlcCls(product,dlc)}">${fmtD(dlc)}</span>`;
 /* Couleur de fond des lignes par dépôt (Stock par emplacement) */
-const DEPOT_BG = {C:"#ffe3c2", D:"#ffe3c2", E:"#ffe3c2", F:"#d9f2df", G:"#ffffff", H:"#d6e8fb"};
+/* Sites : les dépôts C, D, E sont sur le site Fab1 ; F, G, H sur le site Fab2 */
+const SITES = {Fab1:["C","D","E"], Fab2:["F","G","H"]};
+const siteOf = a => Object.keys(SITES).find(s=>SITES[s].includes(String(a||"").toUpperCase())) || "Autres";
+/* [[site, [dépôts…]], …] dans l'ordre Fab1, Fab2, puis les autres dépôts éventuels */
+const sitesOf = aisles => { const g={}; aisles.forEach(a=>(g[siteOf(a)] ||= []).push(a)); return [...Object.keys(SITES),"Autres"].filter(s=>g[s]).map(s=>[s,g[s]]); };
+const DEPOT_BG ={C:"#ffe3c2", D:"#ffe3c2", E:"#ffe3c2", F:"#d9f2df", G:"#ffffff", H:"#d6e8fb"};
 const depotBg = loc => DEPOT_BG[(locOf(loc).aisle||"").toUpperCase()] || "";
 const mq = m => Math.max(1, parseInt(m.qty) || 1); // quantité d'un mouvement (anciens mouvements = 1 palette)
 let opName = ""; try { opName = localStorage.getItem("depot_op") || ""; } catch(e){}
@@ -321,6 +347,10 @@ function stOnRender(a){
   if(a.mail){ const was=JSON.stringify(ST.mailCfg&&{c:ST.mailCfg.configured,f:ST.mailCfg.from}); ST.mailCfg=a.mail;
     if(JSON.stringify({c:a.mail.configured,f:a.mail.from})!==was && ui.view==="mail") render();
     const r=a.mail.res; if(r && ST.mailWait===r.id){ ST.mailWait=null; const m=mailState(); m.busy=false; m.last=r; toast(r.msg,!r.ok); render(); } }
+  if(a.scan){ const was=ST.scanOk; ST.scanOk=!!a.scan.available; if(was!==ST.scanOk && ui.view==="stock") render();
+    const r=a.scan.res; if(r && ST.scanWait===r.id){ ST.scanWait=null; scanDone(r); } }
+  if(a.imp){ const was=ST.impOk; ST.impOk=!!a.imp.available; if(was!==ST.impOk && ui.view==="commande") render();
+    const r=a.imp.res; if(r && ST.impWait===r.id){ ST.impWait=null; toast(r.msg,!r.ok); if(r.ok) cmdReminder(); } }
   if(a.ocr && ST.ocr[a.ocr.id]){ const p=ST.ocr[a.ocr.id]; delete ST.ocr[a.ocr.id]; a.ocr.error ? p.reject(a.ocr.error) : p.resolve(a.ocr.result); }
   if(a.data && a.rev!==ST.rev){ ST.rev=a.rev; const d=a.data;
     for(const c of COLLS) S[c]=d[c]||{}; S.settings={alertMonths:2,...(d.settings||{})};
@@ -495,7 +525,16 @@ async function setLineField(id,p){ const x=S.stock[id]; if(!x) return;
 async function logMove(m){ await backend.put("movements",uid("MV"),{...m,ts:Date.now(),op:opName||""}); }
 
 /* ============ ROUTAGE ============ */
-const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements",mail:"Envoyer le stock par mail",donnees:"Gestion des données"};
+const TITLES = {accueil:"Tableau de bord",plan:"Plan du dépôt",stock:"Stock palettes",reception:"Réception de palettes",sortie:"Sortie de palettes (FEFO)",commande:"Préparation de commande",mouvements:"Historique des mouvements",parametres:"Produits & emplacements",mail:"Envoyer le stock par mail",donnees:"Gestion des données",apropos:"À propos"};
+function vAbout(){ return `<div class="card" style="max-width:520px"><h2>FabLog</h2>
+  <div class="kv"><div>Application</div><div>Gestion du stock de palettes de boisson pour le compte de Spadel S.A.</div>
+  <div>Concepteur</div><div><b>Maya</b></div></div>
+  <h2 style="margin-top:18px">Dernière mise à jour le 25/11/2026</h2>
+  <ul style="margin:6px 0 0;padding-left:20px;line-height:1.7">
+    <li>Amélioration de la visibilité des lignes et de plusieurs fenêtres.</li>
+    <li>Résolution de plusieurs petits bugs.</li>
+    <li>Mise en place du scan et de l'impression directs.</li>
+  </ul></div>`; }
 function route(){ const h=location.hash.slice(1); ui.view = TITLES[h] ? h : "accueil"; render(); }
 window.addEventListener("hashchange", route);
 
@@ -511,7 +550,7 @@ function doRender(){
   const sameView = doRender._v===ui.view; doRender._v=ui.view;
   const keepScroll = sameView ? [...$("#view").querySelectorAll(".scroll")].map(el=>[el.scrollTop,el.scrollLeft]) : [];
   const appEl = $(".app"), appTop = appEl ? appEl.scrollTop : 0;
-  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,mail:vMail,donnees:vData})[ui.view]();
+  $("#view").innerHTML = ({accueil:vDash,plan:vPlan,stock:vStock,reception:vRecep,sortie:vSortie,commande:vCmd,mouvements:vMoves,parametres:vParams,mail:vMail,donnees:vData,apropos:vAbout})[ui.view]();
   fitHeights();
   if (sameView){ $("#view").querySelectorAll(".scroll").forEach((el,i)=>{ const s=keepScroll[i]; if(s){ el.scrollTop=s[0]; el.scrollLeft=s[1]; } }); if(appEl) appEl.scrollTop=appTop; }
   if (keepId){ const el=document.getElementById(keepId); if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selStart);}catch(e){} } }
@@ -612,6 +651,7 @@ function vStock(){
     <input type="file" id="impfile" accept=".xlsx,.csv,.txt" style="display:none" onchange="importFile(this)">
     <button class="yellow needs-claude" onclick="claudeThen('#ocrfile',&quot;L'import d'un relevé manuscrit&quot;)" ${ro()} title="Relevé écrit à la main, en PDF ou en photo">📄 Importer PDF manuscrit</button>
     <input type="file" id="ocrfile" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="importScan(this)">
+    ${ST.scanOk?`<button class="yellow" onclick="scanNow()" ${ro()} title="Ouvre la fenêtre de numérisation de Windows, puis lit le relevé scanné">🖨 Scanner un document</button>`:""}
   </div></div>
   <div class="grid2 stock-cols">
   <div class="card"><h2><span class="x">Stock par emplacement <span class="muted" style="font-weight:400">(${ls.length} lignes)</span></span><select onchange="ui.stockSort={k:this.value,dir:1};render()" style="font-size:12.5px;padding:4px 8px">${[["product","Trier : produit, dépôt, DLC"],["dlc","Trier : DLC, produit, emplacement"],["loc","Trier : emplacement, produit, DLC"]].map(([v,t])=>`<option value="${v}" ${ui.stockSort.k===v?"selected":""}>${t}</option>`).join("")}${ui.stockSort.k==="qty"?`<option value="qty" selected>Trier : palettes</option>`:""}</select></h2>
@@ -805,7 +845,7 @@ function fefoIssues(take){ const by={};
 /* Demande confirmation si on ne sort pas les DLC les plus anciennes. Renvoie true pour continuer. */
 function confirmFefo(take){ const iss=fefoIssues(take); if(!iss.length) return Promise.resolve(true);
   return new Promise(res=>{ const ov=document.createElement("div"); ov.className="ov"; ov.style.zIndex="1000";
-    ov.innerHTML=`<div class="modal"><h3>⚠ Il reste des DLC plus anciennes</h3>
+    ov.innerHTML=`<div class="modal"><h3 class="fefo-warn">⚠ Il reste des DLC plus anciennes</h3>
       ${iss.map(i=>`<p style="margin:0 0 6px">Vous sortez <b class="mono">${esc(i.product)}</b> en DLC <b>${fmtD(i.newest)}</b>, mais il reste <b>${i.older.reduce((s,o)=>s+o.left,0)}</b> palette(s) plus ancienne(s) :</p>
         <div class="muted" style="font-size:12.5px;margin:0 0 10px;max-height:110px;overflow:auto">${i.older.map(o=>`<span class="mono">${esc(L(o.y.loc))}</span> · DLC <b>${fmtD(o.y.dlc)}</b> · ${o.left} pal.`).join("<br>")}</div>`).join("")}
       <p style="margin:0">Faut-il bien prendre les palettes les plus récentes ?</p>
@@ -863,6 +903,7 @@ function vCmd(){
     <div class="row" style="margin-bottom:12px">
       <button class="yellow needs-claude" onclick="claudeThen('#cmdfile',&quot;L'import d'une commande PDF&quot;)" ${ro()}>📄 Importer une commande PDF</button>
       <input type="file" id="cmdfile" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="importCmd(this)">
+      ${ST.scanOk?`<button class="yellow" onclick="scanNow('cmd')" ${ro()} title="Ouvre la fenêtre de numérisation de Windows, puis lit la commande scannée">🖨 Scanner une commande</button>`:""}
       <button onclick="cmdState().lines.push({code:'',n:''});cmdState().doubt.push(false);render();setTimeout(()=>$('#cmd_c'+(cmdState().lines.length-1))?.focus(),30)">+ Ajouter une ligne</button>
       ${c.lines.length?`<button class="danger" onclick="cmdCancel()">✕ Annuler la commande</button>`:""}
     </div>
@@ -870,7 +911,10 @@ function vCmd(){
     ${linesHtml}
   </div>
   <div class="card"><h2>2. Dépôts où prendre les palettes</h2>
-    <div class="row" style="gap:14px">${allAisles().map(a=>`<label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" ${ais.includes(a)?"checked":""} onchange="cmdToggleAisle('${esc(a)}',this.checked)"> Dépôt ${esc(a)}</label>`).join("")||'<span class="muted">Aucun dépôt.</span>'}</div>
+    <div class="row" style="gap:12px;align-items:stretch">${sitesOf(allAisles()).map(([s,as])=>{ const n=as.filter(a=>ais.includes(a)).length;
+      return `<div style="border:1px solid var(--line,#dde3ea);border-radius:8px;padding:8px 12px;min-width:170px">
+        <label style="display:flex;gap:6px;align-items:center;font-weight:800;margin-bottom:6px"><input type="checkbox" ${n===as.length?"checked":""} onchange="cmdToggleSite('${esc(s)}',this.checked)"> ${s==="Autres"?"Autres dépôts":"Site "+esc(s)}</label>
+        <div class="row" style="gap:14px">${as.map(a=>`<label style="display:flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" ${ais.includes(a)?"checked":""} onchange="cmdToggleAisle('${esc(a)}',this.checked)"> Dépôt ${esc(a)}</label>`).join("")}</div></div>`; }).join("")||'<span class="muted">Aucun dépôt.</span>'}</div>
     <div class="row" style="margin-top:10px"><button class="sm" onclick="cmdState().aisles=null;cmdState().take=null;render()">Tous</button><button class="sm" onclick="cmdState().aisles=[];cmdState().take=null;render()">Aucun</button></div>
     <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" ${c.allowExp?"checked":""} onchange="cmdState().allowExp=this.checked;cmdState().take=null;render()"> Autoriser les palettes périmées</label>
     <p class="muted" style="font-size:12.5px;margin-bottom:0">Les palettes sont proposées d'abord par <b>DLC la plus courte</b>, puis, à DLC égale, dans les emplacements qui contiennent <b>le moins de palettes de ce produit</b>.</p>
@@ -878,7 +922,7 @@ function vCmd(){
   <div class="card"><h2><span class="x">3. Emplacements proposés ${prods.length?`<span class="muted" style="font-weight:400">· ${totTake} / ${totNeed} palette(s)</span>`:""}</span>
     ${c.take?`<button class="sm" onclick="cmdState().take=null;render()">Recalculer la proposition</button>`:""}</h2>
     ${prods.length?`<div class="scroll" style="max-height:520px"><table class="impt"><tr><th>Emplacement</th><th class="num">Pal. de ce produit dans l'empl.</th><th>DLC</th><th>Reste</th><th class="num">En stock (ligne)</th><th class="num">À prendre</th></tr>${pick}</table></div>
-    <div class="row" style="margin-top:14px"><button class="pri" onclick="doCmd()" ${ro()} ${totTake?"":"disabled"}>Valider la sortie de ${totTake} palette(s)</button><button onclick="cmdCopy()" ${totTake?"":"disabled"}>Copier la liste de prélèvement</button><button onclick="cmdExcel()" ${totTake?"":"disabled"}>⤓ Liste en Excel</button><span style="flex:1"></span><button class="danger" onclick="cmdCancel()">✕ Annuler la commande</button></div>`
+    <div class="row" style="margin-top:14px"><button class="pri" onclick="doCmd()" ${ro()} ${totTake?"":"disabled"}>Valider la sortie de ${totTake} palette(s)</button><button onclick="cmdCopy()" ${totTake?"":"disabled"}>Copier la liste de prélèvement</button><button onclick="cmdExcel()" ${totTake?"":"disabled"}>⤓ Liste en Excel</button>${ST.impOk?`<button onclick="cmdPrint()" ${totTake?"":"disabled"} title="Imprime la liste Excel sur l'imprimante par défaut de ce PC">🖨 Impression directe</button>`:""}<span style="flex:1"></span><button class="danger" onclick="cmdCancel()">✕ Annuler la commande</button></div>`
     :`<div class="empty">La proposition apparaîtra ici dès que la commande contient des lignes.</div>`}
   </div>`;
 }
@@ -891,18 +935,42 @@ const cmdElseHtml = (code,missing) => { const el=cmdElsewhere(code); if(!el.leng
 function cmdCancel(){ const c=cmdState();
   modal("Annuler la commande",`<p>Abandonner la préparation${c.ref?` de « ${esc(c.ref)} »`:""} ? Les lignes saisies et la proposition seront effacées. <b>Le stock n'est pas modifié.</b></p>`,
   [["Non, continuer"],["Oui, annuler la commande","danger",()=>{ ui.cmd=null; render(); toast("Commande annulée — stock inchangé."); }]]); }
+function cmdToggleSite(s,on){ const c=cmdState(), as=(sitesOf(allAisles()).find(([n])=>n===s)||[,[]])[1], set=new Set(cmdAisles()); as.forEach(a=>on?set.add(a):set.delete(a)); c.aisles=[...set]; c.take=null; render(); }
 function cmdToggleAisle(a,on){ const c=cmdState(); const s=new Set(cmdAisles()); on?s.add(a):s.delete(a); c.aisles=[...s]; c.take=null; render(); }
 function cmdSetTake(id,v){ const c=cmdState(), t=cmdTake(), x=S.stock[id]; t[id]=Math.max(0,Math.min(qty(x),parseInt(v)||0)); c.take=t; render(); }
 function cmdPicks(){ const t=cmdTake(); return Object.keys(t).filter(id=>t[id]>0&&S.stock[id]).map(id=>({...S.stock[id],k:t[id]})).sort((a,b)=>locSort(locOf(a.loc),locOf(b.loc))||a.product.localeCompare(b.product)); }
 function cmdCopy(){ const c=cmdState(); copyText(`Commande ${c.ref||""}\n`+cmdPicks().map(x=>`${L(x.loc)}${rowTxt(x)}\t${x.product}\t${x.k} pal.\tDLC ${fmtD(x.dlc)}`).join("\n"),"Liste de prélèvement copiée."); }
-async function cmdExcel(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length) return;
+/* Impression directe : le serveur imprime la liste Excel sur l'imprimante par défaut du PC */
+function cmdPrint(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length || ST.impWait) return;
+  if(!ST.ready) return toast("Serveur non connecté : rechargez la page.",true);
+  const P=c.print||{}, F=[["liv","N° de livraison"],["voy","N° de voyage"],["cli","Nom du client"],["tra","Nom du transporteur"]];
+  modal("Impression directe",`<div style="display:grid;gap:10px">${F.map(([k,t])=>`<div class="f"><label>${t}</label><input id="pr_${k}" value="${esc(P[k]||"")}" autocomplete="off"></div>`).join("")}</div>
+    <p class="muted" style="font-size:12.5px;margin-bottom:0">Ces informations sont imprimées en haut de la feuille, au-dessus du tableau des produits à prélever.</p>`,
+    [["Annuler",""],["🖨 Imprimer","pri",async()=>{ const v={}; F.forEach(([k])=>v[k]=($("#pr_"+k)?.value||"").trim());
+      if(!v.liv){ toast("Indiquez le n° de livraison.",true); $("#pr_liv")?.focus(); return false; }
+      c.print=v;
+      try{ const data=await blobToB64(cmdWorkbook(ps)); const id=uid("PR"); ST.impWait=id;
+        toast("Impression en cours…");
+        stPost({kind:"print", id, title:"Liste de prélèvement", infos:[...F.map(([k,t])=>k==="voy"?[t,v[k],1]:[t,v[k]]),["Date",new Date().toLocaleDateString("fr-FR")],["Total",`${ps.reduce((s,x)=>s+(+x.k||0),0)} palette(s)`]], file:{data}}); }
+      catch(e){ ST.impWait=null; toast("Impossible de préparer la liste.",true); } }]]);
+  /* Entrée passe au champ suivant ; sur le dernier champ, Entrée imprime */
+  F.slice(0,-1).forEach(([k],i)=>$("#pr_"+k)?.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); e.stopPropagation(); const n=$("#pr_"+F[i+1][0]); n.focus(); n.select(); } }));
+  setTimeout(()=>{ const i=$("#pr_liv"); if(i){ i.focus(); i.select(); } },30); }
+function cmdWorkbook(ps){
   const rows=ps.map(x=>[{v:L(x.loc)+rowTxt(x),s:{b:true,bg:(depotBg(x.loc)||"").replace("#","").toUpperCase()||undefined}},{v:x.product},{v:x.k,s:{right:true}},{v:dlcM(x.dlc)?fmtD(x.dlc):""},{v:""}]);
-  const blob=buildXlsx([{name:"Prélèvement",head:["Emplacement","Produit","Palettes","DLC","Pris ✓"],widths:[13,16,10,9,9],rows}]);
+  return buildXlsx([{name:"Prélèvement",head:["Emplacement","Produit","Palettes","DLC","Pris ✓"],widths:[13,16,10,9,9],rows}]); }
+async function cmdExcel(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length) return;
+  const blob=cmdWorkbook(ps);
   const d=new Date(), name=`prelevement-${(c.ref||"commande").replace(/[^A-Za-z0-9_-]+/g,"_").slice(0,40)}-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
   let dl=null; try{ dl=window.claude&&claude.use?await claude.use("downloads"):null; }catch(e){}
-  if(dl){ try{ await dl.save({filename:name,data:blob}); toast("Liste enregistrée."); }catch(e){ if(e&&e.code!=="declined") toast("Le téléchargement n'est pas disponible ici.",true); } return; }
-  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); }catch(e){ toast("Le téléchargement n'est pas disponible ici.",true); }
+  if(dl){ try{ await dl.save({filename:name,data:blob}); toast("Liste enregistrée."); cmdReminder(); }catch(e){ if(e&&e.code!=="declined") toast("Le téléchargement n'est pas disponible ici.",true); } return; }
+  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); cmdReminder(); }catch(e){ toast("Le téléchargement n'est pas disponible ici.",true); }
 }
+/* Rappel après l'impression ou le téléchargement de la liste : la sortie n'est pas encore enregistrée */
+function cmdReminder(){ document.querySelectorAll(".ov.cmd-rem").forEach(o=>o.remove());
+  modal("Rappel",`<p style="color:#d00000;font-weight:900;font-size:26px;line-height:1.3;text-align:center;margin:8px 0 4px">Ne pas oublier de confirmer la sortie des palettes du stock</p>
+    <p class="muted" style="text-align:center;font-size:13px;margin-bottom:0">Après le prélèvement, cliquez sur « Valider la sortie » en bas de la préparation de commande.</p>`,[["OK","pri"]]);
+  const ovs=document.querySelectorAll(".ov"); ovs[ovs.length-1].classList.add("cmd-rem"); }
 async function doCmd(){ const c=cmdState(), ps=cmdPicks(); if(!ps.length) return; const ref=("Commande "+(c.ref||"")).trim();
   const need=cmdNeed(), taken={}; ps.forEach(x=>taken[x.product]=(taken[x.product]||0)+x.k);
   const short=Object.keys(need).filter(k=>(taken[k]||0)<need[k]);
@@ -925,8 +993,13 @@ async function importCmd(input){
 Relève chaque produit commandé et le nombre de PALETTES demandé. Ignore prix, adresses, totaux généraux et mentions légales.
 Codes produits connus du dépôt (utilise le code connu qui correspond le mieux, sans en inventer ; si aucun ne correspond, recopie le code lu) : ${prods.join(", ")||"aucun"}.
 Si la quantité est exprimée autrement qu'en palettes et que tu ne peux pas la convertir, mets "doute": true.
+Relève aussi sur le document, s'ils y figurent (sinon ""), recopiés tels quels :
+- "livraison" : le n° de livraison (bon de livraison, BL, delivery, n° de livraison…) ;
+- "voyage" : le n° de voyage (voyage, trip, tournée, shipment…) ;
+- "client" : le nom du client (destinataire, livré à, ship-to, sold-to…) ;
+- "transporteur" : le nom du transporteur (transporteur, carrier, affréteur…).
 Réponds uniquement en JSON :
-{"reference":"n° de commande ou nom du client, ou \"\"","lignes":[{"code":"EAU-PL-150","palettes":4,"doute":false}]}`;
+{"reference":"n° de commande ou nom du client, ou \"\"","livraison":"","voyage":"","client":"","transporteur":"","lignes":[{"code":"EAU-PL-150","palettes":4,"doute":false}]}`;
   msg("Lecture de la commande par Claude…");
   let data;
   try{ data=await sample.json(prompt,{images,modelTier:"complex",signal:ocrCtl.signal}); }
@@ -938,7 +1011,10 @@ Réponds uniquement en JSON :
   const ls=arr.filter(r=>r&&typeof r==="object").map(r=>({code:String(r.code??"").trim().toUpperCase(), n:String(parseInt(r.palettes)||"")}));
   if(!ls.length) return toast("Aucune ligne de commande n'a été trouvée.",true);
   const c=cmdState(); c.file=f.name; c.ref=(data&&data.reference)?String(data.reference):c.ref; c.lines=ls; c.doubt=arr.map(r=>!!(r&&r.doute)); c.take=null;
-  location.hash="commande"; render(); toast(`${ls.length} ligne(s) lue(s) : vérifiez-les puis choisissez les dépôts.`);
+  /* Informations de livraison lues sur le document : préremplissent l'impression directe */
+  const s=k=>String((data&&data[k])??"").trim(); c.print={liv:s("livraison"),voy:s("voyage"),cli:s("client"),tra:s("transporteur")};
+  const found=[["liv","N° de livraison"],["voy","N° de voyage"],["cli","client"],["tra","transporteur"]].filter(([k])=>c.print[k]).map(([,t])=>t);
+  location.hash="commande"; render(); toast(`${ls.length} ligne(s) lue(s)${found.length?` · trouvé : ${found.join(", ")}`:""} : vérifiez-les puis choisissez les dépôts.`);
 }
 
 /* ============ MOUVEMENTS ============ */
@@ -1142,18 +1218,39 @@ function lineDetail(id){ const x=S.stock[id]; if(!x||!qty(x)) return; const pr=S
   modal(`${esc(x.product)} · ${esc(L(x.loc))}${esc(rowTxt(x))}`,`<div class="kv">
     <div>Produit</div><div><b class="mono">${esc(x.product)}</b>${pr.format?` <span class="muted">· ${esc(pr.format)}</span>`:""}</div>
     <div>Emplacement</div><div class="mono">${LX(x)}${multiRow(x)?` <span class="muted" style="font-family:inherit;font-size:12px">(${sumQ(sameLines(x.loc,x.product,x.dlc))} pal. sur ${sameLines(x.loc,x.product,x.dlc).length} lignes, même DLC)</span>`:""}</div>
-    <div>DLC</div><div>${DL(x.product,x.dlc)} ${stTag(x)}</div>
+    <div>DLC</div><div>${dlcM(x.dlc)?`${DL(x.product,x.dlc)} ${stTag(x)}`:`<span class="muted">aucune</span>`} <button class="sm" onclick="this.closest('.ov').remove();dlcModal('${esc(id)}')" ${ro()}>✎ ${dlcM(x.dlc)?"Modifier":"Indiquer la DLC"}</button></div>
     <div>Quantité</div><div><b>${qty(x)}</b> palette(s)</div>
     <div>Capacité de la ligne</div><div>${lineMax(x)?`<b>${lineMax(x)}</b> palettes max`:`<span class="muted">non indiquée</span>`} <button class="sm" onclick="this.closest('.ov').remove();maxModal('${esc(id)}')" ${ro()}>✎ ${lineMax(x)?"Modifier":"Indiquer"}</button></div>
     ${x.info?`<div>Info</div><div>${infoTag(x,true)} <button class="sm" onclick="this.closest('.ov').remove();infoModal(['${esc(id)}'])" ${ro()}>✎ Modifier</button></div>`:""}
     ${(b=>b?`<div>Blocage</div><div>${blkTag(x,true)} <button class="sm" onclick="this.closest('.ov').remove();blockLine('${esc(id)}')" ${ro()}>✎ Modifier le motif</button><br><span class="muted" style="font-size:12px">depuis le ${fmtTs(b.ts)}${b.op?" · "+esc(b.op):""} — ${blkLegacy(x)?"ancien blocage : toutes les DLC de ce produit dans cet emplacement":"cette ligne uniquement"}</span></div>`:"")(blockOf(x))}</div>
     ${isBlocked(x)?`<div class="banner" style="margin:12px 0 0">Ces palettes ne peuvent pas sortir ni être transférées, et ne sont pas proposées dans les sorties et commandes. Débloquez-les d'abord.</div>`:""}
     ${hist.length?`<h4 style="margin:16px 0 6px">Derniers mouvements</h4>${hist.map(m=>`<div style="font-size:12.5px">${fmtTs(m.ts)} · ${(MV[m.type]||[m.type])[0]} ${mq(m)} pal. ${m.from?esc(L(m.from))+" → ":""}${esc(L(m.to))} ${m.op?"· "+esc(m.op):""}</div>`).join("")}`:""}`,
-  [["Voir sur le plan","",()=>{ ui.hl=x.loc; location.hash="plan"; render(); }],["+ Ajouter","",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["+ Nouvelle ligne","",()=>{ setTimeout(()=>addNewRow(id),10); }, !canWrite],["ℹ Info","",()=>{ setTimeout(()=>infoModal([id]),10); }, !canWrite],
-   isFull(x)?["Retirer « complet »","",async()=>{ await setFull(id,false); toast(`${L(x.loc)} : ligne marquée non complète.`); }, !canWrite]:["✔ Ligne complète","",async()=>{ await setFull(id,true); toast(`${L(x.loc)} : ligne marquée complète.`); }, !canWrite],["+ Nouvel emplacement","",()=>{ setTimeout(()=>addToNewLoc(id),10); }, !canWrite],
-   isBlocked(x)?["🔓 Débloquer","",()=>{ setTimeout(()=>unblockLine(id),10); }, !canWrite]:["🔒 Bloquer","",()=>{ setTimeout(()=>blockLine(id),10); }, !canWrite],
-   ["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite||isBlocked(x)],[status(x)==="bad"?"Mettre au rebut":"Sortir","danger",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite||isBlocked(x)],["Fermer","pri"]]); }
-const BLK_REASONS = ["Quarantaine","Bloqué par le labo","Contrôle qualité","Litige / retour fournisseur","Autre"];
+  [["+ Ajouter à cette ligne","b-blue",()=>{ setTimeout(()=>addToLine(id),10); }, !canWrite],["+ Nouvelle ligne dans cet emplacement","b-blue",()=>{ setTimeout(()=>addNewRow(id),10); }, !canWrite],["+ Nouvelle ligne dans nouvel emplacement","b-blue",()=>{ setTimeout(()=>addToNewLoc(id),10); }, !canWrite],
+   "sep",
+   ["Transférer","",()=>{ setTimeout(()=>transfer(id),10); }, !canWrite||isBlocked(x)],[status(x)==="bad"?"Mettre au rebut":"Sortie palette(s)","danger b-red",()=>{ setTimeout(()=>quickOut(id),10); }, !canWrite||isBlocked(x)],
+   "sep",
+   ...(isFull(x)?[]:[["✔ Ligne complète","b-grey",async()=>{ await setFull(id,true); toast(`${L(x.loc)} : ligne marquée complète.`); }, !canWrite]]),["ℹ Info","b-grey",()=>{ setTimeout(()=>infoModal([id]),10); }, !canWrite],
+   isBlocked(x)?["🔓 Débloquer","b-grey",()=>{ setTimeout(()=>unblockLine(id),10); }, !canWrite]:["🔒 Bloquer","b-grey",()=>{ setTimeout(()=>blockLine(id),10); }, !canWrite],
+   ["Fermer","pri close b-green"]],{side:true}); }
+/* Indiquer ou corriger la DLC d'une ligne. La ligne change d'identifiant (emplacement + produit + DLC) :
+   elle est recréée avec la nouvelle DLC (quantité, capacité, complet, info et blocage conservés). */
+function dlcModal(id){ const x=S.stock[id]; if(!x) return; const d=dlcM(x.dlc);
+  modal(`DLC · ${esc(x.product)} · ${esc(L(x.loc))}${esc(rowTxt(x))}`,`<div class="f"><label>DLC (MM/AA)</label><input id="dl_v" value="${d?`${d.slice(5,7)}/${d.slice(2,4)}`:""}" placeholder="ex. 11/28" autocomplete="off"></div>
+    <p class="muted" style="font-size:12.5px;margin-bottom:0">${qty(x)} palette(s). Laissez vide pour « sans DLC ».</p>`,
+    [["Annuler"],["Enregistrer","pri",async()=>{ const raw=($("#dl_v")?.value||"").trim(), nd=raw?parseDlcCell(raw):"";
+      if(nd===null){ toast("DLC invalide : utilisez MM/AA (ex. 11/28).",true); return false; }
+      if(nd===d) return;
+      await setLineDlc(id,nd); toast(`${L(x.loc)} : DLC ${nd?"enregistrée : "+fmtD(nd):"retirée"}.`); }]]);
+  setTimeout(()=>{ const i=$("#dl_v"); if(i){ i.focus(); i.select(); } },30); }
+async function setLineDlc(id,nd){ const x=S.stock[id]; if(!x) return;
+  const others=sameLines(x.loc,x.product,nd).filter(y=>y.id!==id), row=others.length?Math.max(...others.map(rowOf))+1:1;
+  const nid=lineId(x.loc,x.product,nd,row); if(nid===id) return;
+  const {id:_i,row:_r,dlc:_d,...rest}=x;
+  await backend.put("stock",nid,{...rest,dlc:dlcM(nd),...(row>1?{row}:{}),id:nid});
+  await backend.del("stock",id);
+  if(S.blocks[id]){ const b=S.blocks[id]; await backend.put("blocks",nid,{...b,id:nid}); await backend.del("blocks",id); }
+  _minD=null; _rowsM=null; render(); }
+const BLK_REASONS =["Quarantaine","Bloqué par le labo","Contrôle qualité","Litige / retour fournisseur","Autre"];
 /* Bloquer, ou modifier le motif d'un blocage existant. Motif libre (suggestions proposées) + info supplémentaire libre. */
 function blockLine(id){ const x=S.stock[id]; if(!x) return; const b=blockOf(x), n=b?blkQty(x):qty(x);
   modal(`🔒 ${b?"Modifier le blocage de":"Bloquer"} ${esc(x.product)} · ${fmtD(x.dlc)} dans ${esc(L(x.loc))}`,`<p class="muted" style="margin-top:0">${b?`Bloqué depuis le ${fmtTs(b.ts)}.`:`Les <b>${n}</b> palette(s) de <b>cette ligne uniquement</b> ne pourront plus sortir ni être transférées, et ne seront plus proposées dans les sorties et commandes. Les autres lignes ne sont pas touchées.`}</p>
@@ -1548,7 +1645,17 @@ function impBuild(){ const im=ui.imp;
   im.items=im.raw.map((r,i)=>{ const code=String(r[0]??"").trim().toUpperCase(), n=parseInt(r[1]), emptyD=r[2]==null||String(r[2]).trim()==="", dlc=emptyD?"":parseDlcCell(r[2]), loc=parseLocCell(r[3]); const err=[];
     if(!code) err.push("code produit manquant"); if(!(n>=1)) err.push("nombre de palettes invalide"); if(dlc===null) err.push(`DLC illisible « ${r[2]??""} »`); if(!loc) err.push(`emplacement illisible « ${r[3]??""} »`);
     return {idx:i,line:im.lines[i],code,n,dlc,loc,err,doubt:!!im.doubt[i],newProd:code&&!S.products[safeId(code)]}; }); }
-function impEdit(i,c,v){ ui.imp.raw[i][c]=v; impBuild(); setTimeout(()=>{ const a=document.activeElement, id=a&&a.id; impModal(); if(id){ const el=document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } } },0); }
+function impEdit(i,c,v){ ui.imp.raw[i][c]=v; impBuild(); setTimeout(()=>{ const a=document.activeElement; let id=a&&a.id;
+  /* après l'emplacement (Tab), on va dans « Capacité ligne » de la même ligne quand elle existe */
+  if(c===3 && (!id || id===`imp_${i}_3`)) id=`imp_${i}_max`;
+  impModal(); if(id){ const el=document.getElementById(id); if(el){ el.focus(); try{ el.select(); }catch(e){} } } },0); }
+/* Capacité max des lignes créées par un import : une valeur par emplacement + produit + DLC.
+   Proposée par défaut : la dernière capacité utilisée pour ce produit. */
+const impKey = x => lineId(x.loc.id,x.code,x.dlc);
+const impIsNew = x => ui.imp.mode==="replace" || !S.stock[lineId(x.loc.id,x.code,x.dlc,openRow(x.loc.id,x.code,x.dlc))];
+const lastMaxOf = product => { const p=lines().filter(y=>y.product===product && lineMax(y)).sort((a,b)=>rowOf(b)-rowOf(a))[0]; return p?lineMax(p):""; };
+function impMax(x){ const im=ui.imp; im.max ||= {}; const k=impKey(x); if(im.max[k]===undefined) im.max[k]=String(lastMaxOf(x.code)); return im.max[k]; }
+function impMaxEdit(k,v){ ui.imp.max[k]=String(v).trim(); document.querySelectorAll(`input[data-mk="${CSS.escape(k)}"]`).forEach(i=>{ if(i.value!==v) i.value=v; }); }
 function impDel(i){ const im=ui.imp; im.raw.splice(i,1); im.lines.splice(i,1); im.doubt.splice(i,1); impBuild(); impModal(); }
 function impPlan(){ const im=ui.imp, ok=im.items.filter(x=>!x.err.length); const bl=byLoc();
   const need={}; ok.forEach(x=>need[x.loc.id]=(need[x.loc.id]||0)+x.n);
@@ -1570,12 +1677,13 @@ function impModal(){
     ${pl.over.length?`<div class="banner" style="margin:10px 0 0">${pl.over.length} emplacement(s) dépasseraient leur capacité : ${pl.over.slice(0,8).map(o=>`${esc(L(o.id)||o.id)} (${o.need}/${o.cap})`).join(", ")}${pl.over.length>8?"…":""}
       <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" ${im.grow?"checked":""} onchange="ui.imp.grow=this.checked;impModal()"> Augmenter leur capacité automatiquement</label></div>`:""}
     <p class="muted" style="margin:12px 0 4px;font-size:12.5px">Vous pouvez corriger chaque case avant d'importer.${im.doubt.some(Boolean)?' Les lignes <b style="background:var(--soonbg);padding:0 4px">en orange</b> ont été lues avec un doute : vérifiez-les.':""}</p>
-    <div class="scroll" style="max-height:340px"><table class="impt"><tr><th>Ligne</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Emplacement</th><th>Lu comme</th><th></th></tr>
+    <div class="scroll" style="max-height:340px"><table class="impt"><tr><th>Ligne</th><th>Produit</th><th class="num">Palettes</th><th>DLC</th><th>Emplacement</th><th title="Capacité max de la nouvelle ligne (vide = sans limite)">Capacité ligne</th><th>Lu comme</th><th></th></tr>
     ${im.items.map(x=>{ const r=im.raw[x.idx], inp=(c,w)=>`<input id="imp_${x.idx}_${c}" value="${esc(r[c])}" style="width:${w}px" onchange="impEdit(${x.idx},${c},this.value)">`;
       return `<tr style="${x.err.length?"background:var(--badbg)":x.doubt?"background:var(--soonbg)":""}"><td class="muted">${x.line}</td><td>${inp(0,120)}</td><td class="num">${inp(1,56)}</td><td>${inp(2,74)}</td><td>${inp(3,80)}</td>
+      <td>${x.err.length?"":impIsNew(x)?`<input type="number" min="1" id="imp_${x.idx}_max" data-mk="${esc(impKey(x))}" value="${esc(impMax(x))}" placeholder="sans limite" style="width:84px" oninput="impMaxEdit(this.dataset.mk,this.value)">`:`<span class="muted" style="font-size:12px">ligne existante</span>`}</td>
       <td style="font-size:12px">${x.err.length?`<span style="color:var(--bad)">${esc(x.err.join(", "))}</span>`:`<span class="mono">${esc(x.code)}</span> · ${x.n} pal. · ${x.dlc?fmtD(x.dlc):"sans DLC"} · <span class="mono">${esc(x.loc.aisle+String(x.loc.pos).padStart(2,"0"))}</span>${x.newProd?' · <i>nouveau produit</i>':""}${x.loc.isNew?' · <i>nouvel empl.</i>':""}`}</td>
       <td><button class="sm" title="Supprimer la ligne" onclick="impDel(${x.idx})">✕</button></td></tr>`; }).join("")}</table></div>`,
-  [["Annuler"],[`Importer ${tot} palette(s)`,"pri",async()=>{ await impApply(); }, blocked||!canWrite]]);
+  [["Annuler"],[`Importer ${tot} palette(s)`,"pri",async()=>{ await impApply(); }, blocked||!canWrite]],{noEnter:true});
   const ovs=document.querySelectorAll(".ov"); ovs[ovs.length-1].classList.add("imp"); ovs[ovs.length-1].querySelector(".modal").style.maxWidth="900px";
 }
 async function impApply(){
@@ -1587,8 +1695,14 @@ async function impApply(){
     for(const id of pl.newLocs){ const x=pl.ok.find(i=>i.loc.id===id).loc; await backend.put("locations",id,{aisle:x.aisle,pos:x.pos,level:0,cap:Math.max(im.cap,pl.need[id])}); }
     if(im.mode==="replace"){ for(const x of lines()){ await logMove({type:"SORTIE",product:x.product,dlc:dlcM(x.dlc),qty:qty(x),from:x.loc,to:"",ref:"Remplacement par import"}); await backend.del("stock",x.id); } }
     for(const o of pl.over){ const l=S.locations[o.id]; if(l && cap(l)<o.need) await backend.put("locations",o.id,{...l,cap:o.need}); }
-    const agg={}; pl.ok.forEach(x=>{ const k=lineId(x.loc.id,x.code,x.dlc); (agg[k] ||= {loc:x.loc.id,product:x.code,dlc:x.dlc,n:0}).n+=x.n; });
-    let n=0; NOASK=true; try{ for(const a of Object.values(agg)){ await addQty(a.loc,a.product,a.dlc,a.n); await logMove({type:"ENTREE",product:a.product,dlc:a.dlc,qty:a.n,from:"",to:a.loc,ref}); n+=a.n; } } finally { NOASK=false; }
+    const agg={}; pl.ok.forEach(x=>{ const k=impKey(x); (agg[k] ||= {loc:x.loc.id,product:x.code,dlc:x.dlc,n:0,isNew:impIsNew(x),max:parseInt(impMax(x))||0}).n+=x.n; });
+    let n=0; NOASK=true; try{ for(const a of Object.values(agg)){
+      if(a.isNew && a.max){ // nouvelle(s) ligne(s) avec la capacité indiquée : le surplus part sur d'autres lignes de même capacité
+        let rem=a.n; while(rem>0){ const r=openRow(a.loc,a.product,a.dlc), id=lineId(a.loc,a.product,a.dlc,r), take=Math.min(rem,a.max-qty(S.stock[id]));
+          if(take<=0){ await setFull(id,true); continue; }
+          await addRaw(a.loc,a.product,a.dlc,take,r); await setLineField(id,{max:a.max}); if(qty(S.stock[id])>=a.max) await setFull(id,true); rem-=take; } }
+      else await addQty(a.loc,a.product,a.dlc,a.n);
+      await logMove({type:"ENTREE",product:a.product,dlc:a.dlc,qty:a.n,from:"",to:a.loc,ref}); n+=a.n; } } finally { NOASK=false; }
     toast(`Import terminé : ${n} palette(s)${pl.newProds.length?`, ${pl.newProds.length} produit(s) créé(s)`:""}${pl.newLocs.length?`, ${pl.newLocs.length} emplacement(s) créé(s)`:""}.`);
   }catch(e){ return false; }
 }
@@ -1613,6 +1727,15 @@ async function claudeThen(sel,what){ $(sel).click(); }
 function claudeNeeded(what){ modal("Lecture par Claude indisponible",`<p>${what} utilise Claude pour lire le document, mais le serveur n'est pas encore connecté. Rechargez la page puis réessayez.</p>`,[["Fermer","pri"]]); }
 let getSample = async () => ST.ready ? stSample : null;
 let ocrCtl=null;
+/* Scanner de la machine où tourne l'application : le serveur ouvre la fenêtre de numérisation de Windows */
+function scanNow(dest){ if(ST.scanWait) return; const id=uid("SC"); ST.scanWait=id; ST.scanDest=dest||"stock";
+  modal("Numérisation",`<p>La fenêtre de numérisation de Windows s'ouvre sur ce PC (elle peut apparaître derrière le navigateur).</p><p class="muted" style="font-size:12.5px">Choisissez les réglages puis cliquez sur « Numériser ». ${ST.scanDest==="cmd"?"La commande":"Le document"} sera ensuite lu automatiquement.</p>`,[]);
+  stPost({kind:"scan", id}); }
+async function scanDone(r){ document.querySelectorAll(".ov").forEach(o=>{ if(o.querySelector("h3")?.textContent==="Numérisation") o.remove(); });
+  if(!r.ok){ if(!r.cancelled) toast(r.msg||"Numérisation impossible.",true); return; }
+  const bin=atob(r.image), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  const d=new Date(), f=new File([u],`scan_${d.toISOString().slice(0,16).replace(/[-:T]/g,"")}.jpg`,{type:"image/jpeg"});
+  (ST.scanDest==="cmd"?importCmd:importScan)({files:[f], value:""}); }
 async function importScan(input){
   const f=input.files&&input.files[0]; input.value=""; if(!f) return;
   const sample=await getSample(); if(!sample) return claudeNeeded("L'import d'un relevé manuscrit");
@@ -1775,14 +1898,21 @@ $("#q").addEventListener("input",e=>{ const q=e.target.value.trim().toLowerCase(
 document.addEventListener("click",e=>{ if(!e.target.closest(".search")) $("#qres").style.display="none"; });
 
 /* ============ OUTILS ============ */
-function modal(title, body, actions){
+/* opts.side : boutons en colonne sur la droite de la fenêtre ; "sep" dans actions = séparateur */
+function modal(title, body, actions, opts){
+  const side=!!(opts&&opts.side);
   const ov=document.createElement("div"); ov.className="ov";
-  ov.innerHTML=`<div class="modal"><h3>${title}</h3>${body}<div class="acts">${actions.map((a,i)=>`<button data-i="${i}" class="${a[1]||""}" ${a[3]?"disabled":""}>${a[0]}</button>`).join("")}</div></div>`;
+  const acts=`<div class="acts">${actions.map((a,i)=>Array.isArray(a)?`<button data-i="${i}" class="${a[1]||""}" ${a[3]?"disabled":""}>${a[0]}</button>`:`<hr class="asep">`).join("")}</div>`;
+  ov.innerHTML = side ? `<div class="modal side"><h3>${title}</h3><div class="side-wrap"><div class="side-body">${body}</div>${acts}</div></div>`
+                      : `<div class="modal"><h3>${title}</h3>${body}${acts}</div>`;
+  actions = actions.map(a=>Array.isArray(a)?a:[]);
   const close=()=>ov.remove();
   ov.addEventListener("click",async e=>{ if(e.target===ov) return close(); const b=e.target.closest("button[data-i]"); if(!b) return; const a=actions[+b.dataset.i];
     if(a[2]){ b.disabled=true; let r; try{ r=await a[2](); }catch(err){ r=false; } b.disabled=false; if(r===false) return; } close(); });
   /* Entrée dans un champ de la fenêtre = bouton de confirmation (le dernier bouton principal qui agit) */
   ov.addEventListener("keydown",e=>{ if(e.key!=="Enter" || e.isComposing || e.shiftKey) return; const t=e.target;
+    /* opts.noEnter : la fenêtre ne se valide qu'au clic de souris. Entrée enregistre seulement la case en cours. */
+    if(opts&&opts.noEnter){ e.preventDefault(); if(t.matches && t.matches("input,select")) t.blur(); return; }
     if(!t.matches || !t.matches("input:not([type=checkbox]):not([type=radio]):not([type=file]),select")) return;
     e.preventDefault(); t.blur(); if(!ov.isConnected) return; // valide d'abord la saisie (événements « change »)
     let i=-1; actions.forEach((a,k)=>{ if(a[2] && !a[3] && /\b(pri|danger)\b/.test(a[1]||"")) i=k; });
