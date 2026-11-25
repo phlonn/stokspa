@@ -16,16 +16,18 @@ import streamlit.components.v1 as components
 
 import courriel
 import drive
+import imprimante
 import lecteur
+import scanner
 import stockage
 
 BASE = Path(__file__).parent
-st.set_page_config(page_title="Dépôt – Palettes d'eau", page_icon="💧", layout="wide")
+st.set_page_config(page_title="FabLog", page_icon="💧", layout="wide")
 
 # --- Mot de passe (version en ligne) ---------------------------------------------
 MDP = drive.secret("mot_de_passe")
 if MDP and not st.session_state.get("autorise"):
-    st.title("💧 Dépôt – Palettes d'eau")
+    st.title("💧 FabLog")
     saisie = st.text_input("Mot de passe", type="password")
     if saisie:
         if hmac.compare_digest(saisie.encode(), str(MDP).encode()):
@@ -100,12 +102,15 @@ if "donnees" not in ss:
 _cm = config_mail()
 etat_mail = {"configured": bool(_cm["utilisateur"] and _cm["mot_de_passe"]), "from": _cm["utilisateur"], "res": ss.get("mail")}
 depot = components.declare_component("depot", path=str(BASE / "composant"))
-msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.get("ack"), ocr=ss.get("ocr"), error=ss.get("erreur"), admin=ss.get("admin"), mail=etat_mail, key="depot", default=None)
+msg = depot(data=ss.donnees, rev=ss.rev, ack=ss.get("ack"), ocr=ss.get("ocr"), error=ss.get("erreur"), admin=ss.get("admin"), mail=etat_mail,
+            scan={"available": scanner.DISPONIBLE, "res": ss.get("scan")},
+            imp={"available": imprimante.DISPONIBLE, "res": ss.get("imp")}, key="depot", default=None)
 
 # --- Messages envoyés par la page ---------------------------------------------------
 if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
     ss.dernier = msg["id"]
     genre = msg.get("kind")
+    ss.scan = None  # l'image numérisée n'est envoyée qu'une fois à la page
     try:
         if genre == "ops":
             ss.donnees = stockage.appliquer(msg.get("ops") or [])
@@ -128,6 +133,18 @@ if isinstance(msg, dict) and msg.get("id") and msg["id"] != ss.dernier:
                 ss.mail = {"id": msg["id"], "ok": True, "msg": "E-mail envoyé à " + ", ".join(dest) + "."}
             except courriel.CourrielError as e:
                 ss.mail = {"id": msg["id"], "ok": False, "msg": str(e)}
+        elif genre == "scan":
+            try:
+                img = scanner.numeriser()
+                ss.scan = {"id": msg["id"], "ok": True, "image": img} if img else {"id": msg["id"], "ok": False, "cancelled": True}
+            except scanner.ScanError as e:
+                ss.scan = {"id": msg["id"], "ok": False, "msg": str(e)}
+        elif genre == "print":
+            try:
+                nom = imprimante.imprimer_xlsx((msg.get("file") or {}).get("data", ""), msg.get("title", ""), msg.get("infos") or [])
+                ss.imp = {"id": msg["id"], "ok": True, "msg": f"Liste envoyée à l'imprimante {nom}." if nom else "Liste envoyée à l'imprimante."}
+            except imprimante.ImpressionError as e:
+                ss.imp = {"id": msg["id"], "ok": False, "msg": str(e)}
         elif genre == "ocr":
             try:
                 ss.ocr = {"id": msg["id"], "result": lecteur.lire_json(msg.get("prompt", ""), msg.get("images") or [], cle_api())}
